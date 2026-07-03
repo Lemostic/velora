@@ -27,7 +27,7 @@ export function HomePage() {
   const grouped = groupByCategory(MODULE_REGISTRY);
 
   return (
-    <div className="mx-auto max-w-6xl space-y-8 p-8">
+    <div className="mx-auto w-full max-w-[1600px] space-y-8 p-6 lg:p-8">
       {/* Hero */}
       <section className="space-y-3">
         <div className="flex items-center gap-2">
@@ -74,7 +74,7 @@ export function HomePage() {
               {modules.length} 个模块
             </span>
           </div>
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
             {modules.map((m) => (
               <ModuleCard key={m.id} module={m} />
             ))}

@@ -80,7 +80,7 @@ export function ExcelToJsonPage() {
   }
 
   return (
-    <div className="mx-auto max-w-5xl space-y-6 p-8">
+    <div className="mx-auto w-full max-w-6xl space-y-6 p-6 lg:p-8 2xl:max-w-7xl">
       <div className="space-y-1">
         <div className="flex items-center gap-2">
           <FileSpreadsheet className="h-5 w-5 text-primary" />
