@@ -3,7 +3,7 @@ import { motion } from "framer-motion";
 import { ArrowUpRight, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { MODULE_REGISTRY, type ModuleMeta } from "@/lib/registry";
-import { PADDING_CLASSES } from "@/lib/spacing";
+import { PADDING_CLASSES, PAGE_CONTAINER_CLASS } from "@/lib/spacing";
 import { useAppStore } from "@/store/app-store";
 
 const STATUS_META = {
@@ -17,7 +17,8 @@ export function HomePage() {
   return (
     <div
       className={cn(
-        "relative mx-auto flex min-h-full w-full max-w-[1400px] flex-col gap-10",
+        PAGE_CONTAINER_CLASS,
+        "relative min-h-full gap-10",
         PADDING_CLASSES[contentPadding],
       )}
     >

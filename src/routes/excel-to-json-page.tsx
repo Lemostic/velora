@@ -14,7 +14,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { ModuleHeader } from "@/components/module/module-header";
 import { useAppStore } from "@/store/app-store";
-import { PADDING_CLASSES } from "@/lib/spacing";
+import { PADDING_CLASSES, PAGE_CONTAINER_CLASS } from "@/lib/spacing";
 import { cn } from "@/lib/utils";
 
 type SheetResult = {
@@ -86,7 +86,8 @@ export function ExcelToJsonPage() {
   return (
     <div
       className={cn(
-        "mx-auto flex h-full w-full max-w-[1400px] flex-col gap-8",
+        PAGE_CONTAINER_CLASS,
+        "gap-8",
         PADDING_CLASSES[contentPadding],
       )}
     >

@@ -6,6 +6,7 @@ import { ModuleHeader } from "@/components/module/module-header";
 import {
   PADDING_CLASSES,
   PADDING_OPTIONS,
+  PAGE_CONTAINER_CLASS,
   type PaddingKey,
 } from "@/lib/spacing";
 
@@ -19,7 +20,8 @@ export function PreferencesPage() {
   return (
     <div
       className={cn(
-        "mx-auto flex h-full w-full max-w-[1400px] flex-col gap-8",
+        PAGE_CONTAINER_CLASS,
+        "gap-8",
         PADDING_CLASSES[contentPadding],
       )}
     >

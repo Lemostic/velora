@@ -33,6 +33,27 @@ export const PADDING_CLASSES: Record<PaddingKey, string> = {
 
 export const DEFAULT_PADDING: PaddingKey = 10;
 
+/**
+ * Canonical outer-container max-width applied to every module page
+ * (Home, QRCode, Excel, ComingSoon, Preferences, ...). Sharing a
+ * single number means the user never sees a width jump when they
+ * navigate between modules — only the inner content reflows.
+ */
+export const CONTENT_MAX_WIDTH = "max-w-[1400px]";
+
+/**
+ * Pre-built "page container" class string. Use exactly this string
+ * on the root `<div>` of any new module page so we don't drift
+ * again.
+ *
+ *   <div className={PAGE_CONTAINER_CLASS}>
+ *     <ModuleHeader moduleId="my-module" />
+ *     ...
+ *   </div>
+ */
+export const PAGE_CONTAINER_CLASS =
+  `mx-auto flex h-full w-full ${CONTENT_MAX_WIDTH} flex-col`;
+
 export function isPaddingKey(n: number): n is PaddingKey {
   return n === 0 || n === 4 || n === 6 || n === 10 || n === 16;
 }
