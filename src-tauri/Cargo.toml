@@ -1,3 +1,7 @@
+[workspace]
+members = ["crates/velora-core", "crates/velora-infra", "crates/velora-modules"]
+resolver = "2"
+
 [package]
 name = "velora"
 version = "0.1.0"
@@ -32,7 +36,13 @@ thiserror = "2"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
-# Modules
+# Workspace members — the new plugin architecture
+velora-core    = { path = "crates/velora-core" }
+velora-infra   = { path = "crates/velora-infra" }
+velora-modules = { path = "crates/velora-modules" }
+
+# Business crates still living in the root (will move to
+# velora-modules in P2)
 qrcode = { version = "0.14", default-features = false, features = ["svg"] }
 calamine = "0.26"
 base64 = "0.22"

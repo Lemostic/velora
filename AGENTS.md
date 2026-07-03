@@ -184,3 +184,32 @@ cd src-tauri && cargo test  # Rust 单元测试
 - 长文件用 `///` doc comment，公共 API 必须有
 - 跨平台路径用 `std::path::PathBuf`，不要拼字符串
 - 涉及文件 IO 用 `tokio::fs`（async），同步 IO 只在简单场景
+
+## 插件架构（详见 `docs/ARCHITECTURE.md`）
+
+Velora 后端已拆成 Cargo workspace（4 个 crate），目标是模块自包含 + 能力沙箱 + 第三方可扩展：
+
+```
+src-tauri/
+├── Cargo.toml          # workspace root（velora-app + crates/*）
+├── src/                # velora-app（Tauri 入口，极薄壳）
+└── crates/
+    ├── velora-core/    # ★ Module / HostServices / Capability / Command / Event 全部 trait
+    ├── velora-infra/   # P3 填：HostServices 的 sqlx/reqwest/tokio 实现
+    └── velora-modules/ # P2 填：QRCode/Excel 迁过来用新 trait
+```
+
+**新加模块的正确流程**：
+1. 在 `velora-modules/src/<id>.rs` 实现 `Module` trait
+2. 末尾加 `inventory::submit!(ModuleEntry::new(|| Box::new(MyModule)));`
+3. 在 `src/lib/registry.ts` 加前端元数据
+4. 完事，主入口 `lib.rs` / `App.tsx` / `NavRail` 都不动
+
+**写新模块时**：
+- 不要 `use reqwest` / `use sqlx` / `use tokio::fs` — 走 `host.http()` / `host.db()` / `host.fs()`
+- 不要在 `velora-app` 加命令函数 — 在模块里 `Command::new(...)` 注册
+- 错误用 `VeloraError::*` 变体，不要返回 `String`
+- 跨模块通信用 `host.events().publish(Event::...)`
+
+**当前阶段**：P1（velora-core trait）✅，P2（迁 QRCode/Excel）待办，P3-P8 待办。
+

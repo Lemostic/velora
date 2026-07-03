@@ -1,0 +1,12 @@
+[package]
+name = "velora-modules"
+version = "0.1.0"
+edition = "2021"
+description = "Built-in Velora modules (placeholder for P2 migration)"
+
+[lib]
+name = "velora_modules"
+path = "src/lib.rs"
+
+[dependencies]
+velora-core = { path = "../velora-core" }
