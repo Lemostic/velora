@@ -185,6 +185,13 @@ cd src-tauri && cargo test  # Rust 单元测试
 - 跨平台路径用 `std::path::PathBuf`，不要拼字符串
 - 涉及文件 IO 用 `tokio::fs`（async），同步 IO 只在简单场景
 
+## 页面布局约定
+
+- 所有模块页面（home / qrcode / excel / coming-soon / preferences / 未来新增）根容器**必须**用 `PAGE_CONTAINER_CLASS`（定义在 `src/lib/spacing.ts`），保证切换模块时外层 max-w 都是 1400px 不跳变
+- 不要在页面根 div 手写 `max-w-[1400px]` 或 `max-w-4xl` —— 全部走 `spacing.ts` 的常量
+- 页面级有意的局部宽度（hero 文字 `max-w-2xl`、NotFound `max-w-md` 居中）是允许的
+- padding 5 档也走 `PADDING_CLASSES[key]`，不要硬写 `px-10 py-8`
+
 ## 插件架构（详见 `docs/ARCHITECTURE.md`）
 
 Velora 后端已拆成 Cargo workspace（4 个 crate），目标是模块自包含 + 能力沙箱 + 第三方可扩展：
