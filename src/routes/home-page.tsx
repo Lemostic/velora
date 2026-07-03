@@ -32,7 +32,7 @@ export function HomePage() {
 
 function HeroSection() {
   return (
-    <section className="relative overflow-hidden rounded-3xl border border-border/60 bg-card/40 px-8 py-10 shadow-diffusion lg:px-12 lg:py-14 surface-hero glass-edge">
+    <section className="relative overflow-hidden rounded-xl border border-border/60 bg-card/40 px-8 py-10 shadow-diffusion lg:px-12 lg:py-14 surface-hero glass-edge">
       <div className="absolute inset-0 surface-grid opacity-60" />
       <div className="relative flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
         <div className="flex max-w-2xl flex-col gap-4">
@@ -193,7 +193,7 @@ function BentoCard({ module: m, icon, status, disabled, size }: BentoCardProps) 
   const inner = (
     <div
       className={cn(
-        "group relative flex h-full w-full flex-col justify-between overflow-hidden rounded-3xl border border-border/60 bg-card/40 p-5 shadow-diffusion glass-edge transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]",
+        "group relative flex h-full w-full flex-col justify-between overflow-hidden rounded-xl border border-border/60 bg-card/40 p-5 shadow-diffusion glass-edge transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]",
         disabled
           ? "opacity-50"
           : "hover:-translate-y-0.5 hover:border-primary/30 hover:bg-card/70 hover:shadow-[0_24px_48px_-20px_oklch(0.72_0.16_230/0.25),inset_0_1px_0_0_oklch(1_0_0/0.08),inset_0_-1px_0_0_oklch(0_0_0/0.2)]",
@@ -207,7 +207,7 @@ function BentoCard({ module: m, icon, status, disabled, size }: BentoCardProps) 
       <div className="relative flex items-start justify-between">
         <div
           className={cn(
-            "grid place-items-center rounded-2xl border border-border/60 bg-background/50 text-foreground shadow-diffusion-sm",
+            "grid place-items-center rounded-lg border border-border/60 bg-background/50 text-foreground shadow-diffusion-sm",
             size === "lg" ? "h-11 w-11" : "h-9 w-9",
           )}
         >
@@ -258,7 +258,7 @@ function BentoCard({ module: m, icon, status, disabled, size }: BentoCardProps) 
   return (
     <Link
       to={m.path}
-      className="block h-full rounded-3xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+      className="block h-full rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
     >
       {inner}
     </Link>

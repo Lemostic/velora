@@ -6,6 +6,7 @@ import { ExcelToJsonPage } from "@/routes/excel-to-json-page";
 import { ComingSoonPage } from "@/routes/coming-soon-page";
 import { PreferencesPage } from "@/routes/preferences-page";
 import { NotFoundPage } from "@/routes/not-found-page";
+import { useTheme } from "@/hooks/use-theme";
 
 const router = createBrowserRouter([
   {
@@ -54,5 +55,6 @@ const router = createBrowserRouter([
 ]);
 
 export function App() {
+  useTheme();
   return <RouterProvider router={router} />;
 }

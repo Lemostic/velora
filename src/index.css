@@ -12,7 +12,7 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
-  /* Light mode — kept as fallback, app boots dark by default */
+  /* Light mode */
   --background: oklch(0.985 0 0);
   --foreground: oklch(0.145 0 0);
   --card: oklch(1 0 0);
@@ -32,7 +32,8 @@
   --border: oklch(0.91 0 0);
   --input: oklch(0.91 0 0);
   --ring: oklch(0.55 0.18 230);
-  --radius: 1.25rem;
+  /* Base radius kept small — overrides Tailwind's default 0.625rem */
+  --radius: 0.5rem;
 }
 
 .dark {
@@ -89,12 +90,13 @@
   --color-input: var(--input);
   --color-ring: var(--ring);
 
-  --radius-sm: calc(var(--radius) - 8px);
-  --radius-md: calc(var(--radius) - 4px);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 8px);
-  --radius-2xl: calc(var(--radius) + 16px);
-  --radius-3xl: calc(var(--radius) + 24px);
+  /* Tighter radius scale: 4 / 6 / 8 / 12 / 16 / 24 */
+  --radius-sm: 0.25rem;
+  --radius-md: 0.375rem;
+  --radius-lg: 0.5rem;
+  --radius-xl: 0.75rem;
+  --radius-2xl: 1rem;
+  --radius-3xl: 1.5rem;
 }
 
 @layer base {
@@ -116,7 +118,25 @@
     -moz-osx-font-smoothing: grayscale;
     overscroll-behavior: none;
     text-rendering: optimizeLegibility;
+    /* Smoother dark/light transitions on chrome surfaces */
+    transition: background-color 0.2s ease, color 0.2s ease;
   }
+
+  /* Form controls — tighter corner radius than the cards by default,
+     so the input/select/textarea look sharp in a desktop app. */
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+  select,
+  textarea {
+    border-radius: var(--radius-md);
+  }
+  input[type="checkbox"],
+  input[type="radio"] {
+    border-radius: 0.25rem;
+  }
+  button {
+    border-radius: var(--radius-md);
+  }
+
   ::-webkit-scrollbar {
     width: 10px;
     height: 10px;
@@ -132,6 +152,15 @@
   ::-webkit-scrollbar-thumb:hover {
     background: var(--muted-foreground);
   }
+}
+
+/* Smooth theme transition for backgrounds and borders */
+*,
+*::before,
+*::after {
+  transition-property: background-color, border-color, color, fill, stroke;
+  transition-duration: 200ms;
+  transition-timing-function: ease;
 }
 
 /* ============================================================

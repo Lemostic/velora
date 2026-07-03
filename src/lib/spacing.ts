@@ -1,8 +1,7 @@
-// Tailwind JIT requires all utility classes to be statically present in
-// source files, so we enumerate every padding scale up-front and look them
-// up by key at runtime. Adding a new scale means adding a literal key here
-// AND using the matching class string somewhere in the codebase so the
-// scanner picks it up.
+// Map of scale key → Tailwind class string used by every page container.
+// Padding is now width-invariant: the same scale applies at every viewport
+// width, so the right-hand gutter stays at exactly 10 units no matter
+// whether the window is narrow or fullscreen.
 
 export type PaddingKey = 0 | 4 | 6 | 10 | 16;
 
@@ -20,13 +19,16 @@ export const PADDING_OPTIONS: readonly PaddingOption[] = [
   { value: 16, label: "宽松", description: "64px" },
 ] as const;
 
-/** Map of scale key → Tailwind class string used by every page container. */
+/**
+ * Tailwind class string per padding scale.
+ * No breakpoint suffix — the same scale applies at every width.
+ */
 export const PADDING_CLASSES: Record<PaddingKey, string> = {
   0: "px-0 py-0",
-  4: "px-4 py-4 lg:px-4 lg:py-6",
-  6: "px-6 py-6 lg:px-6 lg:py-8",
-  10: "px-6 py-8 lg:px-10 lg:py-10",
-  16: "px-8 py-10 lg:px-16 lg:py-12",
+  4: "px-4 py-4",
+  6: "px-6 py-6",
+  10: "px-10 py-8",
+  16: "px-16 py-10",
 };
 
 export const DEFAULT_PADDING: PaddingKey = 10;

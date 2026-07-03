@@ -42,7 +42,7 @@ export function PreferencesPage() {
                 key={opt.value}
                 onClick={() => setContentPadding(opt.value)}
                 className={cn(
-                  "group relative flex flex-col items-start gap-1 rounded-2xl border p-3 text-left transition-all",
+                  "group relative flex flex-col items-start gap-1 rounded-lg border p-3 text-left transition-all",
                   active
                     ? "border-primary/50 bg-primary/[0.06] shadow-glow"
                     : "border-border/60 bg-card/40 hover:border-border hover:bg-card/70",
@@ -90,7 +90,7 @@ export function PreferencesPage() {
                 key={t}
                 onClick={() => setTheme(t)}
                 className={cn(
-                  "rounded-2xl border p-3 text-sm font-medium tracking-tight transition-all",
+                  "rounded-lg border p-3 text-sm font-medium tracking-tight transition-all",
                   active
                     ? "border-primary/50 bg-primary/[0.06]"
                     : "border-border/60 bg-card/40 hover:border-border hover:bg-card/70",
@@ -110,7 +110,7 @@ export function PreferencesPage() {
         icon={<Sparkles className="h-4 w-4" />}
       >
         {recentModules.length === 0 ? (
-          <div className="rounded-2xl border border-dashed bg-card/30 p-6 text-center text-sm text-muted-foreground">
+          <div className="rounded-lg border border-dashed bg-card/30 p-6 text-center text-sm text-muted-foreground">
             还没有访问过模块。打开任意模块后会出现在这里。
           </div>
         ) : (
@@ -137,7 +137,7 @@ export function PreferencesPage() {
 
 function PaddingPreview({ value }: { value: PaddingKey }) {
   return (
-    <div className="overflow-hidden rounded-2xl border border-border/60 bg-card/30 shadow-diffusion-sm">
+    <div className="overflow-hidden rounded-lg border border-border/60 bg-card/30 shadow-diffusion-sm">
       <div className="flex items-center justify-between border-b border-border/60 px-4 py-2.5">
         <span className="text-[11px] font-medium uppercase tracking-[0.12em] text-muted-foreground/70">
           实时预览
@@ -176,7 +176,7 @@ function SettingsGroup({
   children: React.ReactNode;
 }) {
   return (
-    <section className="rounded-2xl border border-border/60 bg-card/30 p-5 shadow-diffusion-sm">
+    <section className="rounded-lg border border-border/60 bg-card/30 p-5 shadow-diffusion-sm">
       <div className="mb-4 flex items-start gap-3">
         <div className="grid h-8 w-8 shrink-0 place-items-center rounded-lg border border-border/60 bg-background/40 text-foreground/80">
           {icon}
