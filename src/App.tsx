@@ -4,6 +4,7 @@ import { HomePage } from "@/routes/home-page";
 import { QRCodePage } from "@/routes/qrcode-page";
 import { ExcelToJsonPage } from "@/routes/excel-to-json-page";
 import { ComingSoonPage } from "@/routes/coming-soon-page";
+import { PreferencesPage } from "@/routes/preferences-page";
 import { NotFoundPage } from "@/routes/not-found-page";
 
 const router = createBrowserRouter([
@@ -46,10 +47,7 @@ const router = createBrowserRouter([
         path: "modules/excel-schedule",
         element: <ComingSoonPage moduleId="excel-schedule" />,
       },
-      {
-        path: "modules/preferences",
-        element: <ComingSoonPage moduleId="preferences" />,
-      },
+      { path: "modules/preferences", element: <PreferencesPage /> },
       { path: "*", element: <NotFoundPage /> },
     ],
   },

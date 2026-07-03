@@ -1,6 +1,9 @@
 import { Link } from "react-router-dom";
 import { Info } from "lucide-react";
 import { ModuleHeader } from "@/components/module/module-header";
+import { useAppStore } from "@/store/app-store";
+import { PADDING_CLASSES } from "@/lib/spacing";
+import { cn } from "@/lib/utils";
 import type { ModuleId } from "@/lib/registry";
 
 interface ComingSoonPageProps {
@@ -8,8 +11,14 @@ interface ComingSoonPageProps {
 }
 
 export function ComingSoonPage({ moduleId }: ComingSoonPageProps) {
+  const contentPadding = useAppStore((s) => s.contentPadding);
   return (
-    <div className="mx-auto flex h-full w-full max-w-4xl flex-col gap-6 px-6 py-8 lg:px-10 lg:py-10">
+    <div
+      className={cn(
+        "mx-auto flex h-full w-full max-w-4xl flex-col gap-6",
+        PADDING_CLASSES[contentPadding],
+      )}
+    >
       <ModuleHeader moduleId={moduleId} />
 
       {/* Not-yet-implemented notice */}

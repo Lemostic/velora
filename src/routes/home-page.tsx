@@ -3,6 +3,8 @@ import { motion } from "framer-motion";
 import { ArrowUpRight, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { MODULE_REGISTRY, type ModuleMeta } from "@/lib/registry";
+import { PADDING_CLASSES } from "@/lib/spacing";
+import { useAppStore } from "@/store/app-store";
 
 const STATUS_META = {
   ready: { label: "已上线", dot: "bg-emerald-500" },
@@ -11,8 +13,14 @@ const STATUS_META = {
 } as const;
 
 export function HomePage() {
+  const contentPadding = useAppStore((s) => s.contentPadding);
   return (
-    <div className="relative mx-auto flex min-h-full w-full max-w-[1400px] flex-col gap-10 px-6 py-10 lg:px-10 lg:py-12">
+    <div
+      className={cn(
+        "relative mx-auto flex min-h-full w-full max-w-[1400px] flex-col gap-10",
+        PADDING_CLASSES[contentPadding],
+      )}
+    >
       {/* Asymmetric hero — left aligned, no centered text */}
       <HeroSection />
 

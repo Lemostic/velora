@@ -10,6 +10,9 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ModuleHeader } from "@/components/module/module-header";
+import { useAppStore } from "@/store/app-store";
+import { PADDING_CLASSES } from "@/lib/spacing";
+import { cn } from "@/lib/utils";
 
 type EncodeResult = {
   format: string;
@@ -19,6 +22,7 @@ type EncodeResult = {
 };
 
 export function QRCodePage() {
+  const contentPadding = useAppStore((s) => s.contentPadding);
   const [text, setText] = useState("https://velora.dev");
   const [size, setSize] = useState(320);
   const [errorCorrection, setErrorCorrection] = useState("M");
@@ -50,7 +54,12 @@ export function QRCodePage() {
   }
 
   return (
-    <div className="mx-auto flex h-full w-full max-w-[1400px] flex-col gap-8 px-6 py-8 lg:px-10 lg:py-10">
+    <div
+      className={cn(
+        "mx-auto flex h-full w-full max-w-[1400px] flex-col gap-8",
+        PADDING_CLASSES[contentPadding],
+      )}
+    >
       <ModuleHeader moduleId="qrcode" />
 
       <div className="grid flex-1 grid-cols-1 gap-5 lg:grid-cols-2 xl:gap-6">

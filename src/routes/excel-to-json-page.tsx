@@ -13,6 +13,9 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ModuleHeader } from "@/components/module/module-header";
+import { useAppStore } from "@/store/app-store";
+import { PADDING_CLASSES } from "@/lib/spacing";
+import { cn } from "@/lib/utils";
 
 type SheetResult = {
   name: string;
@@ -28,6 +31,7 @@ type ConvertResult = {
 };
 
 export function ExcelToJsonPage() {
+  const contentPadding = useAppStore((s) => s.contentPadding);
   const [file, setFile] = useState<string | null>(null);
   const [result, setResult] = useState<ConvertResult | null>(null);
   const [activeSheet, setActiveSheet] = useState(0);
@@ -80,7 +84,12 @@ export function ExcelToJsonPage() {
   }
 
   return (
-    <div className="mx-auto flex h-full w-full max-w-[1400px] flex-col gap-8 px-6 py-8 lg:px-10 lg:py-10">
+    <div
+      className={cn(
+        "mx-auto flex h-full w-full max-w-[1400px] flex-col gap-8",
+        PADDING_CLASSES[contentPadding],
+      )}
+    >
       <ModuleHeader moduleId="excel-to-json" />
 
       <Card>
