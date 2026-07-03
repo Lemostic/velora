@@ -19,7 +19,6 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Tooltip,
   TooltipContent,
-  TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { useAppStore } from "@/store/app-store";
@@ -100,13 +99,12 @@ export function NavRail() {
   const sidebarCollapsed = useAppStore((s) => s.sidebarCollapsed);
 
   return (
-    <TooltipProvider delayDuration={200}>
-      <aside
-        className={cn(
-          "flex h-full shrink-0 flex-col border-r bg-card/40 backdrop-blur transition-[width] duration-200",
-          sidebarCollapsed ? "w-14" : "w-60",
-        )}
-      >
+    <aside
+      className={cn(
+        "flex h-full shrink-0 flex-col border-r bg-card/40 backdrop-blur transition-[width] duration-200",
+        sidebarCollapsed ? "w-14" : "w-60",
+      )}
+    >
         {/* Logo / brand */}
         <div className="flex h-12 items-center gap-2 border-b px-3">
           <div className="grid h-7 w-7 place-items-center rounded-md bg-gradient-to-br from-primary to-primary/60 text-primary-foreground shadow-sm">
@@ -153,7 +151,6 @@ export function NavRail() {
           )}
         </div>
       </aside>
-    </TooltipProvider>
   );
 }
 
