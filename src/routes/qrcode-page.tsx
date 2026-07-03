@@ -50,7 +50,7 @@ export function QRCodePage() {
   }
 
   return (
-    <div className="mx-auto flex h-full w-full max-w-6xl flex-col gap-5 p-6 lg:p-8 2xl:max-w-7xl">
+    <div className="mx-auto flex h-full w-full max-w-[1400px] flex-col gap-8 px-6 py-8 lg:px-10 lg:py-10">
       <ModuleHeader moduleId="qrcode" />
 
       <div className="grid flex-1 grid-cols-1 gap-5 lg:grid-cols-2 xl:gap-6">

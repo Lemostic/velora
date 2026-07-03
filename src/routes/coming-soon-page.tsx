@@ -9,7 +9,7 @@ interface ComingSoonPageProps {
 
 export function ComingSoonPage({ moduleId }: ComingSoonPageProps) {
   return (
-    <div className="mx-auto flex h-full w-full max-w-3xl flex-col gap-4 p-6">
+    <div className="mx-auto flex h-full w-full max-w-4xl flex-col gap-6 px-6 py-8 lg:px-10 lg:py-10">
       <ModuleHeader moduleId={moduleId} />
 
       {/* Not-yet-implemented notice */}

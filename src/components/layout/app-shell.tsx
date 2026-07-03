@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { Outlet } from "react-router-dom";
+import { motion } from "framer-motion";
 import { NavRail } from "@/components/nav/nav-rail";
 import { TopBar } from "@/components/layout/top-bar";
 import { useAppStore } from "@/store/app-store";
@@ -24,7 +25,6 @@ export function AppShell() {
       .catch((err) => setBackendError(String(err)));
   }, []);
 
-  // Track route changes for recent modules (best-effort)
   useEffect(() => {
     const handler = (e: Event) => {
       const path = (e as CustomEvent<string>).detail;
@@ -37,15 +37,23 @@ export function AppShell() {
 
   return (
     <TooltipProvider delayDuration={200}>
-      <div className="flex h-screen w-screen overflow-hidden bg-background text-foreground">
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+        className="flex h-screen w-screen overflow-hidden bg-background text-foreground"
+      >
         <NavRail />
         <div className="flex flex-1 flex-col overflow-hidden">
           <TopBar appInfo={appInfo} error={backendError} />
-          <main className="flex-1 overflow-auto" style={{ overscrollBehavior: "contain" }}>
+          <main
+            className="flex-1 overflow-auto"
+            style={{ overscrollBehavior: "contain" }}
+          >
             <Outlet />
           </main>
         </div>
-      </div>
+      </motion.div>
     </TooltipProvider>
   );
 }
