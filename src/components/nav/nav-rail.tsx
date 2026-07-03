@@ -182,13 +182,13 @@ export function NavRail() {
   return (
     <aside
       className={cn(
-        "flex h-full shrink-0 flex-col border-r border-border/60 bg-card/30 backdrop-blur-xl transition-[width] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]",
-        sidebarCollapsed ? "w-[68px]" : "w-[244px]",
+        "flex h-full shrink-0 flex-col border-r border-metallic bg-background-elevated/40 backdrop-blur-2xl transition-[width] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]",
+        sidebarCollapsed ? "w-[68px]" : "w-[248px]",
       )}
     >
       {/* Brand */}
-      <div className="flex h-16 items-center gap-2.5 border-b border-border/60 px-4">
-        <div className="relative grid h-9 w-9 shrink-0 place-items-center overflow-hidden rounded-xl bg-gradient-to-br from-primary/90 to-primary/40 shadow-glow">
+      <div className="flex h-16 items-center gap-2.5 border-b border-metallic px-4">
+        <div className="relative grid h-9 w-9 shrink-0 place-items-center overflow-hidden rounded-xl bg-gradient-to-br from-primary to-primary/40 shadow-glow ring-1 ring-inset ring-white/10">
           <Sparkles className="h-4 w-4 text-primary-foreground" strokeWidth={2} />
         </div>
         {!sidebarCollapsed && (
@@ -196,8 +196,8 @@ export function NavRail() {
             <span className="text-[15px] font-semibold tracking-tight">
               Velora
             </span>
-            <span className="text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground/60">
-              v0.1.0
+            <span className="text-[10px] font-medium uppercase tracking-[0.12em] text-foreground-muted">
+              v0.1.0 · dev
             </span>
           </div>
         )}
@@ -228,11 +228,11 @@ export function NavRail() {
       </ScrollArea>
 
       {!sidebarCollapsed && (
-        <div className="border-t border-border/60 px-4 py-3">
-          <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.12em] text-muted-foreground/60">
+        <div className="border-t border-metallic px-4 py-3">
+          <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.12em] text-foreground-muted">
             <span className="relative flex h-1.5 w-1.5">
-              <span className="absolute inset-0 animate-ping rounded-full bg-emerald-500/60" />
-              <span className="relative inline-block h-1.5 w-1.5 rounded-full bg-emerald-500" />
+              <span className="absolute inset-0 animate-ping rounded-full bg-accent-emerald/60" />
+              <span className="relative inline-block h-1.5 w-1.5 rounded-full bg-accent-emerald" />
             </span>
             Tauri 运行时
           </div>

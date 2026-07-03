@@ -7,9 +7,9 @@ import { PADDING_CLASSES } from "@/lib/spacing";
 import { useAppStore } from "@/store/app-store";
 
 const STATUS_META = {
-  ready: { label: "已上线", dot: "bg-emerald-500" },
-  wip: { label: "开发中", dot: "bg-amber-500" },
-  planned: { label: "规划中", dot: "bg-zinc-500" },
+  ready: { label: "已上线", dot: "bg-accent-emerald" },
+  wip: { label: "开发中", dot: "bg-accent-amber" },
+  planned: { label: "规划中", dot: "bg-foreground-subtle" },
 } as const;
 
 export function HomePage() {
@@ -32,15 +32,23 @@ export function HomePage() {
 
 function HeroSection() {
   return (
-    <section className="relative overflow-hidden rounded-xl border border-border/60 bg-card/40 px-8 py-10 shadow-diffusion lg:px-12 lg:py-14 surface-hero glass-edge">
-      <div className="absolute inset-0 surface-grid opacity-60" />
+    <section className="relative overflow-hidden rounded-xl border border-metallic bg-background-elevated/60 px-8 py-10 shadow-diffusion lg:px-12 lg:py-14 surface-hero glass-edge">
+      <div className="absolute inset-0 surface-grid opacity-50" />
+      {/* A second, smaller accent halo for visual focal point. */}
+      <div
+        className="pointer-events-none absolute -right-24 -top-24 h-72 w-72 rounded-full opacity-60"
+        style={{
+          background:
+            "radial-gradient(closest-side, var(--ambient-emerald), transparent 70%)",
+        }}
+      />
       <div className="relative flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
         <div className="flex max-w-2xl flex-col gap-4">
           <motion.div
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
-            className="inline-flex w-fit items-center gap-2 rounded-full border border-border/60 bg-background/40 px-3 py-1 text-[11px] font-medium uppercase tracking-[0.12em] text-muted-foreground backdrop-blur"
+            className="inline-flex w-fit items-center gap-2 rounded-full border border-border bg-background-overlay/60 px-3 py-1 text-[11px] font-medium uppercase tracking-[0.12em] text-foreground-muted backdrop-blur"
           >
             <span className="relative flex h-1.5 w-1.5">
               <span className="absolute inset-0 animate-ping rounded-full bg-primary/60" />
@@ -64,7 +72,7 @@ function HeroSection() {
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6, delay: 0.1, ease: [0.16, 1, 0.3, 1] }}
-            className="max-w-xl text-[15px] leading-relaxed text-muted-foreground"
+            className="max-w-xl text-[15px] leading-relaxed text-foreground-muted"
           >
             从 JavaFX/WorkbenchFX 重写而来。11 个内置模块，覆盖开发、文件、转换、效率四大场景，
             每个都在本地 Rust 端跑，零上传、零依赖、零妥协。
@@ -78,17 +86,17 @@ function HeroSection() {
           className="flex shrink-0 flex-col gap-2 lg:items-end"
         >
           <div className="flex items-baseline gap-1.5 font-mono">
-            <span className="text-5xl font-semibold tracking-tighter text-foreground">
+            <span className="bg-gradient-to-br from-foreground to-foreground-muted bg-clip-text text-5xl font-semibold tracking-tighter text-transparent">
               11
             </span>
-            <span className="text-sm text-muted-foreground">个模块</span>
+            <span className="text-sm text-foreground-muted">个模块</span>
           </div>
-          <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
-            <span className="h-1 w-1 rounded-full bg-emerald-500" />
+          <div className="flex items-center gap-2 text-[11px] text-foreground-muted">
+            <span className="h-1 w-1 rounded-full bg-accent-emerald" />
             <span className="font-mono">2 ready</span>
-            <span className="h-1 w-1 rounded-full bg-amber-500" />
+            <span className="h-1 w-1 rounded-full bg-accent-amber" />
             <span className="font-mono">2 wip</span>
-            <span className="h-1 w-1 rounded-full bg-zinc-500" />
+            <span className="h-1 w-1 rounded-full bg-foreground-subtle" />
             <span className="font-mono">7 planned</span>
           </div>
         </motion.div>
@@ -117,10 +125,10 @@ function BentoGrid() {
   return (
     <section className="space-y-4">
       <div className="flex items-end justify-between">
-        <h2 className="text-[11px] font-medium uppercase tracking-[0.12em] text-muted-foreground/70">
+        <h2 className="text-[11px] font-medium uppercase tracking-[0.12em] text-foreground-muted">
           所有模块
         </h2>
-        <span className="font-mono text-[11px] text-muted-foreground/60">
+        <span className="font-mono text-[11px] text-foreground-subtle">
           {MODULE_REGISTRY.length} / 11
         </span>
       </div>
@@ -193,27 +201,27 @@ function BentoCard({ module: m, icon, status, disabled, size }: BentoCardProps) 
   const inner = (
     <div
       className={cn(
-        "group relative flex h-full w-full flex-col justify-between overflow-hidden rounded-xl border border-border/60 bg-card/40 p-5 shadow-diffusion glass-edge transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]",
+        "group relative flex h-full w-full flex-col justify-between overflow-hidden rounded-xl border border-border bg-background-elevated/50 p-5 shadow-diffusion glass-edge transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]",
         disabled
-          ? "opacity-50"
-          : "hover:-translate-y-0.5 hover:border-primary/30 hover:bg-card/70 hover:shadow-[0_24px_48px_-20px_oklch(0.72_0.16_230/0.25),inset_0_1px_0_0_oklch(1_0_0/0.08),inset_0_-1px_0_0_oklch(0_0_0/0.2)]",
+          ? "opacity-55"
+          : "hover:-translate-y-0.5 hover:border-primary/40 hover:bg-background-elevated/80 hover:shadow-glow",
       )}
     >
       {/* Subtle accent gradient overlay on hover (only on interactive tiles) */}
       {!disabled && (
-        <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-primary/[0.04] via-transparent to-transparent opacity-0 transition-opacity duration-500 group-hover:opacity-100" />
+        <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-primary/[0.06] via-transparent to-transparent opacity-0 transition-opacity duration-500 group-hover:opacity-100" />
       )}
 
       <div className="relative flex items-start justify-between">
         <div
           className={cn(
-            "grid place-items-center rounded-lg border border-border/60 bg-background/50 text-foreground shadow-diffusion-sm",
+            "grid place-items-center rounded-lg border border-border bg-background-overlay/60 text-foreground shadow-diffusion-sm",
             size === "lg" ? "h-11 w-11" : "h-9 w-9",
           )}
         >
           {icon}
         </div>
-        <div className="flex items-center gap-1.5 rounded-full border border-border/60 bg-background/40 px-2 py-0.5 text-[10px] font-medium tracking-tight text-muted-foreground backdrop-blur">
+        <div className="flex items-center gap-1.5 rounded-full border border-border bg-background-overlay/60 px-2 py-0.5 text-[10px] font-medium tracking-tight text-foreground-muted backdrop-blur">
           <span className={cn("h-1.5 w-1.5 rounded-full", status.dot)} />
           {status.label}
         </div>
@@ -230,7 +238,7 @@ function BentoCard({ module: m, icon, status, disabled, size }: BentoCardProps) 
         </div>
         <p
           className={cn(
-            "line-clamp-2 leading-snug text-muted-foreground",
+            "line-clamp-2 leading-snug text-foreground-muted",
             size === "lg" ? "text-[13px]" : "text-[12px]",
           )}
         >
@@ -240,7 +248,7 @@ function BentoCard({ module: m, icon, status, disabled, size }: BentoCardProps) 
 
       {!disabled && (
         <div className="relative flex items-center justify-end">
-          <span className="grid h-7 w-7 place-items-center rounded-full border border-border/60 bg-background/40 text-muted-foreground transition-all duration-300 group-hover:border-primary/40 group-hover:bg-primary/10 group-hover:text-primary">
+          <span className="grid h-7 w-7 place-items-center rounded-full border border-border bg-background-overlay/60 text-foreground-muted transition-all duration-300 group-hover:border-primary/50 group-hover:bg-primary/15 group-hover:text-primary">
             <ArrowUpRight
               className="h-3.5 w-3.5 transition-transform duration-300 group-hover:-translate-y-0.5 group-hover:translate-x-0.5"
               strokeWidth={2}

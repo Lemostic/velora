@@ -24,7 +24,7 @@ export function TopBar({ appInfo, error }: TopBarProps) {
   const online = !error && appInfo != null;
 
   return (
-    <header className="flex h-14 shrink-0 items-center justify-between border-b border-border/60 bg-card/20 px-4 backdrop-blur-xl">
+    <header className="flex h-14 shrink-0 items-center justify-between border-b border-metallic bg-background-elevated/50 px-4 backdrop-blur-2xl">
       <div className="flex items-center gap-2">
         <Tooltip>
           <TooltipTrigger asChild>
@@ -47,26 +47,26 @@ export function TopBar({ appInfo, error }: TopBarProps) {
           initial={{ opacity: 0, y: -4 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
-          className="flex items-center gap-2 rounded-full border border-border/60 bg-card/40 px-3 py-1.5 text-[11px] font-medium tracking-tight"
+          className="flex items-center gap-2 rounded-full border border-border bg-background-overlay/60 px-3 py-1.5 text-[11px] font-medium tracking-tight backdrop-blur"
         >
           {online ? (
             <>
               <span className="relative flex h-1.5 w-1.5">
-                <span className="absolute inset-0 animate-ping rounded-full bg-emerald-500/60" />
-                <span className="relative inline-block h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                <span className="absolute inset-0 animate-ping rounded-full bg-accent-emerald/60" />
+                <span className="relative inline-block h-1.5 w-1.5 rounded-full bg-accent-emerald" />
               </span>
-              <span className="font-mono text-muted-foreground">
+              <span className="font-mono text-foreground-muted">
                 {moduleCount} modules
               </span>
-              <span className="text-muted-foreground/40">·</span>
-              <span className="font-mono text-muted-foreground">
+              <span className="text-foreground-subtle">·</span>
+              <span className="font-mono text-foreground-muted">
                 Tauri {appInfo?.tauriVersion}
               </span>
             </>
           ) : (
             <>
               <span className="h-1.5 w-1.5 rounded-full bg-destructive" />
-              <span className="text-muted-foreground">后端离线</span>
+              <span className="text-foreground-muted">后端离线</span>
             </>
           )}
         </motion.div>
