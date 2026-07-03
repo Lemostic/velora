@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { QrCode, Sparkles, Wand2 } from "lucide-react";
+import { Sparkles, Wand2 } from "lucide-react";
 import {
   Card,
   CardContent,
@@ -9,8 +9,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
+import { ModuleHeader } from "@/components/module/module-header";
 
 type EncodeResult = {
   format: string;
@@ -51,27 +50,10 @@ export function QRCodePage() {
   }
 
   return (
-    <div className="mx-auto w-full max-w-6xl space-y-6 p-6 lg:p-8 2xl:max-w-7xl">
-      <div className="space-y-1">
-        <div className="flex items-center gap-2">
-          <QrCode className="h-5 w-5 text-primary" />
-          <h1 className="text-xl font-semibold">二维码</h1>
-          <Badge variant="secondary" className="text-[10px]">
-            阶段 3 · 简单模块
-          </Badge>
-        </div>
-        <p className="text-sm text-muted-foreground">
-          把任意文本、URL、WiFi 配置转成二维码。生成在 Rust 端用
-          <code className="mx-1 rounded bg-muted px-1.5 py-0.5 text-xs">
-            qrcode
-          </code>
-          crate 完成，零网络依赖。
-        </p>
-      </div>
+    <div className="mx-auto flex h-full w-full max-w-6xl flex-col gap-5 p-6 lg:p-8 2xl:max-w-7xl">
+      <ModuleHeader moduleId="qrcode" />
 
-      <Separator />
-
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 xl:gap-8">
+      <div className="grid flex-1 grid-cols-1 gap-5 lg:grid-cols-2 xl:gap-6">
         <Card>
           <CardHeader>
             <CardTitle>输入</CardTitle>

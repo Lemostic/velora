@@ -41,7 +41,7 @@ export function AppShell() {
         <NavRail />
         <div className="flex flex-1 flex-col overflow-hidden">
           <TopBar appInfo={appInfo} error={backendError} />
-          <main className="flex-1 overflow-auto">
+          <main className="flex-1 overflow-auto" style={{ overscrollBehavior: "contain" }}>
             <Outlet />
           </main>
         </div>

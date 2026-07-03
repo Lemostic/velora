@@ -1,35 +1,38 @@
 import { Link } from "react-router-dom";
-import { Construction, ArrowLeft } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { getModule, type ModuleId } from "@/lib/registry";
+import { Info } from "lucide-react";
+import { ModuleHeader } from "@/components/module/module-header";
+import type { ModuleId } from "@/lib/registry";
 
 interface ComingSoonPageProps {
   moduleId: ModuleId;
 }
 
 export function ComingSoonPage({ moduleId }: ComingSoonPageProps) {
-  const m = getModule(moduleId);
-  const ModuleIcon = m?.icon ?? Construction;
-
   return (
-    <div className="mx-auto flex max-w-md flex-col items-center gap-4 px-6 py-20 text-center">
-      <div className="grid h-14 w-14 place-items-center rounded-xl bg-primary/10 text-primary">
-        <ModuleIcon className="h-7 w-7" />
+    <div className="mx-auto flex h-full w-full max-w-3xl flex-col gap-4 p-6">
+      <ModuleHeader moduleId={moduleId} />
+
+      {/* Not-yet-implemented notice */}
+      <div className="flex items-start gap-2 rounded-md border border-dashed bg-muted/30 p-3 text-xs text-muted-foreground">
+        <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+        <div className="space-y-1">
+          <div className="font-medium text-foreground/80">该模块尚未实现</div>
+          <div>
+            按迁移计划在后续阶段迁入。优先级参考
+            <Link
+              to="/"
+              className="mx-1 text-primary underline-offset-2 hover:underline"
+            >
+              首页
+            </Link>
+            的状态徽章，或
+            <code className="mx-1 rounded bg-background px-1 py-0.5 text-[10px]">
+              AGENTS.md
+            </code>
+            里的模块清单。
+          </div>
+        </div>
       </div>
-      <div className="space-y-1">
-        <h1 className="text-lg font-semibold">{m?.name ?? moduleId}</h1>
-        <p className="text-sm text-muted-foreground">
-          {m?.description ?? "该模块尚未实现"}
-        </p>
-      </div>
-      <Badge variant="outline">尚未实现 · 见迁移计划</Badge>
-      <Button asChild variant="ghost" size="sm">
-        <Link to="/">
-          <ArrowLeft className="h-4 w-4" />
-          返回首页
-        </Link>
-      </Button>
     </div>
   );
 }

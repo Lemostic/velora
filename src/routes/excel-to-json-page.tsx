@@ -12,8 +12,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
+import { ModuleHeader } from "@/components/module/module-header";
 
 type SheetResult = {
   name: string;
@@ -25,6 +24,7 @@ type SheetResult = {
 type ConvertResult = {
   sheets: SheetResult[];
   fileName: string;
+  format: string;
 };
 
 export function ExcelToJsonPage() {
@@ -80,26 +80,8 @@ export function ExcelToJsonPage() {
   }
 
   return (
-    <div className="mx-auto w-full max-w-6xl space-y-6 p-6 lg:p-8 2xl:max-w-7xl">
-      <div className="space-y-1">
-        <div className="flex items-center gap-2">
-          <FileSpreadsheet className="h-5 w-5 text-primary" />
-          <h1 className="text-xl font-semibold">Excel → JSON</h1>
-          <Badge variant="secondary" className="text-[10px]">
-            阶段 3 · 简单模块
-          </Badge>
-        </div>
-        <p className="text-sm text-muted-foreground">
-          解析 .xlsx/.xls/.xlsm，每个 sheet 转成 JSON 数组。第一行作为表头。
-          Rust 端用
-          <code className="mx-1 rounded bg-muted px-1.5 py-0.5 text-xs">
-            calamine
-          </code>
-          crate，Apache POI 速度的 5-10 倍。
-        </p>
-      </div>
-
-      <Separator />
+    <div className="mx-auto flex h-full w-full max-w-6xl flex-col gap-5 p-6 lg:p-8 2xl:max-w-7xl">
+      <ModuleHeader moduleId="excel-to-json" />
 
       <Card>
         <CardHeader>
@@ -141,7 +123,7 @@ export function ExcelToJsonPage() {
             <div className="flex items-center justify-between">
               <div>
                 <CardTitle>
-                  解析结果 · {result.sheets.length} 个 sheet
+                  解析结果 · {result.sheets.length} 个 sheet · {result.format}
                 </CardTitle>
                 <CardDescription>{result.fileName}</CardDescription>
               </div>

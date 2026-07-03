@@ -87,6 +87,8 @@
   body,
   #root {
     height: 100%;
+    /* Desktop apps shouldn't bounce on scroll-end — kill web-style overscroll */
+    overscroll-behavior: none;
   }
   body {
     background-color: var(--background);
@@ -96,6 +98,7 @@
       system-ui, sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    overscroll-behavior: none;
   }
   ::-webkit-scrollbar {
     width: 8px;
