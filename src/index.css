@@ -137,6 +137,28 @@
     border-radius: var(--radius-md);
   }
 
+  /* Cursor states — explicit because some WebView2 builds strip the
+     browser default `cursor: pointer` on <button>. Apply it to every
+     truly interactive element; let disabled / aria-disabled elements
+     fall through to `not-allowed` so users get a real "off" signal. */
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]),
+  a,
+  label[for],
+  summary {
+    cursor: pointer;
+  }
+  button:disabled,
+  [role="button"][aria-disabled="true"],
+  a[aria-disabled="true"] {
+    cursor: not-allowed;
+  }
+  /* Checkbox / radio hit area — small target, still a pointer. */
+  input[type="checkbox"],
+  input[type="radio"] {
+    cursor: pointer;
+  }
+
   ::-webkit-scrollbar {
     width: 10px;
     height: 10px;
