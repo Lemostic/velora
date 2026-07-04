@@ -367,8 +367,8 @@ export function ProcessManagerPage() {
     >
       <ModuleHeader moduleId="process-manager" />
 
-      <div className="grid flex-1 grid-cols-1 gap-5 lg:grid-cols-[320px_minmax(0,1fr)] xl:gap-6">
-        <Card>
+      <div className="grid min-h-0 flex-1 grid-cols-1 gap-5 lg:grid-cols-[320px_minmax(0,1fr)] xl:gap-6">
+        <Card className="flex min-h-0 flex-col h-full">
           <CardHeader>
             <CardTitle>过滤</CardTitle>
             <CardDescription>sysinfo 实时拉取本机进程</CardDescription>
@@ -427,7 +427,7 @@ export function ProcessManagerPage() {
           </CardContent>
         </Card>
 
-        <Card className="flex min-h-0 flex-col">
+        <Card className="flex min-h-0 flex-col h-full">
           <CardHeader>
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
