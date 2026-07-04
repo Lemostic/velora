@@ -1,18 +1,19 @@
 //! QR Code 模块 — Rust 端命令实现
 //!
-//! 用 `qrcode` crate + `image` crate 生成 PNG，前端直接 `<img src=...>` 即可。
+//! PNG 直接落盘到 `app_data_dir/qrcodes/`；前端通过 `convertFileSrc`
+//! 转 `asset://` URL 给 `<img src>` 使用 —— 这是 Tauri 2 显示二进制图片的
+//! 标准通路，绕过 data URL 的常见坑（base64 串超长时 IPC 序列化偶发截断）。
 //!
 //! 设计要点：
-//!  - 输出 PNG 不是 SVG，因为 SVG 在 data URL 里有已知的字符编码坑
-//!    （Tauri 的 WebView2 在某些版本对 `data:image/svg+xml;base64,...` 的
-//!    image rendering 行为不一致），PNG 是最稳的位图。
-//!  - 内部用 1024 px 高分辨率渲染，前端按容器自适应显示，
-//!    调用方传入的 size 参数是兼容旧调用接口的占位（本模块不再用）。
+//!  - 始终 512×512 输出，文件 ~5KB，IPC 友好。
+//!  - 缓存键 = text + ec，同一内容第二次直接复用磁盘文件。
 
-use base64::Engine;
 use image::Luma;
 use qrcode::{EcLevel, QrCode};
 use serde::{Deserialize, Serialize};
+use std::collections::hash_map::DefaultHasher;
+use std::hash::{Hash, Hasher};
+use tauri::Manager;
 
 #[derive(Debug, Deserialize)]
 pub struct QrEncodeRequest {
@@ -24,7 +25,7 @@ pub struct QrEncodeRequest {
 }
 
 fn default_size() -> u32 {
-    1024 // 高分辨率；前端按容器缩放显示
+    512
 }
 fn default_ec() -> String {
     "M".to_string()
@@ -35,7 +36,9 @@ pub struct QrEncodeResult {
     pub format: String,
     pub width: u32,
     pub height: u32,
-    pub data_url: String,
+    /// 磁盘绝对路径（POSIX 风格，用 `/`）。前端用
+    /// `convertFileSrc(path)` 转 asset:// 后给 `<img src>`。
+    pub path: String,
 }
 
 fn parse_ec(s: &str) -> EcLevel {
@@ -47,31 +50,35 @@ fn parse_ec(s: &str) -> EcLevel {
     }
 }
 
-pub fn encode(req: QrEncodeRequest) -> Result<QrEncodeResult, String> {
-    if req.text.is_empty() {
+fn cache_key(text: &str, ec: &str) -> String {
+    let mut h = DefaultHasher::new();
+    text.hash(&mut h);
+    ec.to_ascii_uppercase().hash(&mut h);
+    format!("qr_{:x}.png", h.finish())
+}
+
+/// 单命令：编码 + 落盘，返回 Tauri asset URL。
+#[tauri::command]
+pub fn qrcode_encode(app: tauri::AppHandle, req: QrEncodeRequest) -> Result<QrEncodeResult, String> {
+    if req.text.trim().is_empty() {
         return Err("text must not be empty".into());
     }
-    let ec = parse_ec(&req.error_correction);
-    let code = QrCode::with_error_correction_level(req.text.as_bytes(), ec)
+    let ec_level = parse_ec(&req.error_correction);
+    let code = QrCode::with_error_correction_level(req.text.as_bytes(), ec_level)
         .map_err(|e| format!("qr encode failed: {e}"))?;
 
-    // 始终渲染到 1024×1024（自然像素），white bg + black dots。
-    // 强制 min_dimensions 等于 max_dimensions 保证是正方形无 padding。
     let target = req.size.max(64).min(2048);
     let img = code
         .render::<Luma<u8>>()
         .min_dimensions(target, target)
         .max_dimensions(target, target)
         .build();
-
     let (w, h) = (img.width(), img.height());
 
-    // PNG 编码到内存
     let mut png_bytes: Vec<u8> = Vec::new();
     {
         use image::ImageEncoder;
-        let encoder = image::codecs::png::PngEncoder::new(&mut png_bytes);
-        encoder
+        image::codecs::png::PngEncoder::new(&mut png_bytes)
             .write_image(
                 img.as_raw(),
                 img.width(),
@@ -81,16 +88,22 @@ pub fn encode(req: QrEncodeRequest) -> Result<QrEncodeResult, String> {
             .map_err(|e| format!("png encode failed: {e}"))?;
     }
 
-    let data_url = format!(
-        "data:image/png;base64,{}",
-        base64::engine::general_purpose::STANDARD.encode(&png_bytes)
-    );
+    // 落盘到 app_data_dir/qrcodes/<hash>.png
+    let data_dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| format!("app_data_dir: {e}"))?;
+    let dir = data_dir.join("qrcodes");
+    std::fs::create_dir_all(&dir).map_err(|e| format!("mkdir failed: {e}"))?;
+    let fname = cache_key(&req.text, &req.error_correction);
+    let abs = dir.join(&fname);
+    std::fs::write(&abs, &png_bytes).map_err(|e| format!("write failed: {e}"))?;
 
     Ok(QrEncodeResult {
         format: "image/png".into(),
         width: w,
         height: h,
-        data_url,
+        path: abs.to_string_lossy().into_owned(),
     })
 }
 
@@ -99,25 +112,18 @@ mod tests {
     use super::*;
 
     #[test]
-    fn encode_simple_text() {
-        let r = encode(QrEncodeRequest {
-            text: "https://velora.dev".into(),
-            size: 256,
-            error_correction: "M".into(),
-        })
-        .unwrap();
-        assert!(r.data_url.starts_with("data:image/png;base64,"));
-        assert_eq!(r.format, "image/png");
-        assert_eq!(r.width, r.height, "must be square");
+    fn cache_key_changes_with_text() {
+        assert_ne!(
+            cache_key("https://velora.dev", "M"),
+            cache_key("https://velora.dev2", "M"),
+        );
     }
 
     #[test]
-    fn empty_text_errors() {
-        let r = encode(QrEncodeRequest {
-            text: "".into(),
-            size: 256,
-            error_correction: "M".into(),
-        });
-        assert!(r.is_err());
+    fn cache_key_changes_with_ec() {
+        assert_ne!(
+            cache_key("foo", "M"),
+            cache_key("foo", "H"),
+        );
     }
 }

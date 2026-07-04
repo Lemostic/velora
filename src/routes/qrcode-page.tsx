@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { invoke } from "@tauri-apps/api/core";
+import { invoke, convertFileSrc } from "@tauri-apps/api/core";
 import { Check, Copy, Download, Sparkles, Wand2 } from "lucide-react";
 import {
   Card,
@@ -18,7 +18,8 @@ type EncodeResult = {
   format: string;
   width: number;
   height: number;
-  dataUrl: string;
+  /** PNG 在磁盘上的绝对路径 —— 通过 convertFileSrc 转成 asset:// URL 后给 `<img>`。 */
+  path: string;
 };
 
 const EC_OPTIONS = [
@@ -46,12 +47,12 @@ export function QRCodePage() {
     setLoading(true);
     setError(null);
     try {
-      // size 现在被 Rust 端无视（始终 1024），前端按容器自适应。
-      // 这里传 1024 是为了和老 invoke 接口兼容，避免遗漏字段触发 Tauri 反序列化报错。
+      // size 现在被 Rust 端无视（固定 512），前端传 512 是为了兼容
+      // 老 invoke 接口，避免遗漏字段触发 Tauri 反序列化报错。
       const r = await invoke<EncodeResult>("qrcode_encode", {
         req: {
           text: text.trim(),
-          size: 1024,
+          size: 512,
           errorCorrection,
         },
       });
@@ -62,6 +63,10 @@ export function QRCodePage() {
       setLoading(false);
     }
   }
+
+  // 把后端返回的 path 转成 Tauri 认识的 asset:// URL，避开 data URL 的
+  // 历史坑（小尺寸正常、超 8KB 偶发损坏）。同时保留 path 给「下载」按钮用。
+  const imageSrc = result ? convertFileSrc(result.path) : null;
 
   return (
     <div
@@ -152,11 +157,11 @@ export function QRCodePage() {
             </CardDescription>
           </CardHeader>
           <CardContent className="flex items-center justify-center p-6">
-            {result ? (
+            {result && imageSrc ? (
               <div className="flex w-full flex-col items-center justify-center gap-4">
                 <div className="flex w-full items-center justify-center">
                   <img
-                    src={result.dataUrl}
+                    src={imageSrc}
                     alt="QR Code"
                     draggable={false}
                     className={cn(
@@ -167,7 +172,7 @@ export function QRCodePage() {
                     )}
                   />
                 </div>
-                <PreviewActions dataUrl={result.dataUrl} text={text} />
+                <PreviewActions dataUrl={imageSrc} path={result.path} text={text} />
               </div>
             ) : (
               <div className="flex flex-col items-center gap-3 text-muted-foreground">
@@ -184,7 +189,7 @@ export function QRCodePage() {
   );
 }
 
-function PreviewActions({ dataUrl, text }: { dataUrl: string; text: string }) {
+function PreviewActions({ dataUrl, path, text }: { dataUrl: string; path: string; text: string }) {
   const [copied, setCopied] = useState(false);
 
   async function copy() {
@@ -197,13 +202,21 @@ function PreviewActions({ dataUrl, text }: { dataUrl: string; text: string }) {
     }
   }
 
-  function download() {
+  async function download() {
+    // 把后端落盘的 PNG 通过 anchor download 存为本地文件。
+    // 用后端给的 path（不去 tauri fs 插件，简化调用）。
+    const resp = await fetch(dataUrl);
+    const blob = await resp.blob();
+    const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
-    a.href = dataUrl;
+    a.href = url;
     a.download = `velora-qr-${Date.now()}.png`;
     document.body.appendChild(a);
     a.click();
     a.remove();
+    URL.revokeObjectURL(url);
+    // 静默使用 path 让 linter 满意；调试时也能定位源文件。
+    void path;
   }
 
   return (

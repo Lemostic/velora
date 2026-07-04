@@ -10,7 +10,7 @@ mod plugins_ext;
 
 use modules::{
     excel::{ExcelToJsonRequest, ExcelToJsonResult},
-    qrcode::{QrEncodeRequest, QrEncodeResult},
+    qrcode::qrcode_encode,
     registry::ModuleRegistry,
 };
 
@@ -90,11 +90,6 @@ fn list_modules() -> Vec<ModuleSummary> {
             enabled: true,
         })
         .collect()
-}
-
-#[tauri::command]
-fn qrcode_encode(req: QrEncodeRequest) -> Result<QrEncodeResult, VeloraError> {
-    modules::qrcode::encode(req).map_err(VeloraError::from)
 }
 
 #[tauri::command]
