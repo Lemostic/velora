@@ -11,7 +11,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { ModuleHeader } from "@/components/module/module-header";
 import { useAppStore } from "@/store/app-store";
-import { PADDING_CLASSES, PAGE_CONTAINER_CLASS } from "@/lib/spacing";
+import { PAGE_CONTAINER_CLASS, paddingToStyle } from "@/lib/spacing";
 import { cn } from "@/lib/utils";
 
 type EncodeResult = {
@@ -54,13 +54,7 @@ export function QRCodePage() {
   }
 
   return (
-    <div
-      className={cn(
-        PAGE_CONTAINER_CLASS,
-        "gap-8",
-        PADDING_CLASSES[contentPadding],
-      )}
-    >
+    <div className={cn(PAGE_CONTAINER_CLASS, "gap-8")} style={paddingToStyle(contentPadding)}>
       <ModuleHeader moduleId="qrcode" />
 
       <div className="grid flex-1 grid-cols-1 gap-5 lg:grid-cols-2 xl:gap-6">

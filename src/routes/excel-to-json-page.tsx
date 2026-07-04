@@ -14,7 +14,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { ModuleHeader } from "@/components/module/module-header";
 import { useAppStore } from "@/store/app-store";
-import { PADDING_CLASSES, PAGE_CONTAINER_CLASS } from "@/lib/spacing";
+import { PAGE_CONTAINER_CLASS, paddingToStyle } from "@/lib/spacing";
 import { cn } from "@/lib/utils";
 
 type SheetResult = {
@@ -84,13 +84,7 @@ export function ExcelToJsonPage() {
   }
 
   return (
-    <div
-      className={cn(
-        PAGE_CONTAINER_CLASS,
-        "gap-8",
-        PADDING_CLASSES[contentPadding],
-      )}
-    >
+    <div className={cn(PAGE_CONTAINER_CLASS, "gap-8")} style={paddingToStyle(contentPadding)}>
       <ModuleHeader moduleId="excel-to-json" />
 
       <Card>
