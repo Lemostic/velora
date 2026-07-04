@@ -184,8 +184,8 @@ export const MODULE_REGISTRY: ModuleMeta[] = [
     category: "productivity",
     description: "Excel 排期 + 甘特图 + 多维度过滤 + Owner 统计",
     longDescription:
-      "这是从 JavaFX 版 **tool-suite** 迁过来的主力模块。功能：上传项目排期 Excel（多日期格式自动识别）→ 解析任务 / 负责人 / 工作类型 → 渲染甘特图 → 按类型/环节/责任人多维过滤 → 导出新 Excel。\n\n迁移重点：保留原 `ScheduleEngine` + `OwnerStatsCalculator` 算法，UI 改用 `frappe-gantt` / `dhtmlx-gantt` 替代手绘 `GanttChartPane`。",
-    tags: ["⭐ 主力模块", "第 3 阶段", "几百人天级项目"],
+      "主力模块。功能：上传项目排期 Excel（多日期格式自动识别）→ 解析任务 / 负责人 / 工作类型 → 渲染甘特图 → 按类型/环节/责任人多维过滤 → 导出新 Excel。\n\n核心算法基于 `ScheduleEngine` + `OwnerStatsCalculator`，UI 用 `frappe-gantt` / `dhtmlx-gantt` 渲染。",
+    tags: ["主力模块", "第 3 阶段", "几百人天级项目"],
     icon: GanttChartSquare,
     path: "/modules/excel-schedule",
     status: "planned",

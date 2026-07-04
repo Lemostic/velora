@@ -162,6 +162,22 @@
     height: 100%;
     overscroll-behavior: none;
   }
+
+  /* Desktop client — chrome text/UI chrome shouldn't be selectable.
+     Allow selection only inside form inputs, textareas, and explicit
+     contenteditable surfaces so users can still copy values. */
+  body {
+    -webkit-user-select: none;
+    user-select: none;
+  }
+  input,
+  textarea,
+  [contenteditable="true"],
+  [contenteditable="plaintext-only"] {
+    -webkit-user-select: text;
+    user-select: text;
+  }
+
   body {
     background-color: var(--background);
     color: var(--foreground);
