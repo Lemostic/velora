@@ -151,21 +151,20 @@ export function QRCodePage() {
                 : "点击生成后在这里预览"}
             </CardDescription>
           </CardHeader>
-          <CardContent className="flex min-h-80 items-center justify-center p-6">
+          <CardContent className="flex items-center justify-center p-6">
             {result ? (
-              <div className="flex h-full w-full flex-col items-center justify-center gap-4">
+              <div className="flex w-full flex-col items-center justify-center gap-4">
                 <div className="flex w-full items-center justify-center">
                   <img
                     src={result.dataUrl}
                     alt="QR Code"
                     draggable={false}
                     className={cn(
+                      // 居中 + 永远是正方形：宽度跟 Card 走，高度由 aspect-ratio 决定
                       "rounded-lg border border-border bg-white p-3 shadow-diffusion-sm",
-                      // 正方形，填满 Card 减 padding 后的可用空间，上下左右居中
-                      "max-h-[420px] w-auto max-w-full",
-                      "aspect-square object-contain",
+                      "aspect-square w-full max-w-[360px]",
+                      "object-contain",
                     )}
-                    style={{ height: "min(420px, calc(100vh - 320px))" }}
                   />
                 </div>
                 <PreviewActions dataUrl={result.dataUrl} text={text} />
