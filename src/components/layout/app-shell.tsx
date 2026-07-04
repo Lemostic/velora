@@ -48,7 +48,7 @@ export function AppShell() {
         <div className="flex flex-1 flex-col overflow-hidden">
           <TopBar appInfo={appInfo} error={backendError} />
           <main
-            className="flex-1 overflow-auto"
+            className="flex-1 min-h-0 overflow-auto"
             style={{ overscrollBehavior: "contain" }}
           >
             <Outlet />

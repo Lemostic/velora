@@ -427,7 +427,7 @@ export function ProcessManagerPage() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="flex min-h-0 flex-col">
           <CardHeader>
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
@@ -453,7 +453,7 @@ export function ProcessManagerPage() {
               </div>
             </div>
           </CardHeader>
-          <CardContent className="p-0">
+          <CardContent className="flex min-h-0 flex-1 flex-col p-0">
             {data ? (
               <ProcessTable
                 rows={rows}
@@ -656,7 +656,7 @@ function ProcessTable({
   onCancel: () => void;
 }) {
   return (
-    <div className="overflow-x-auto">
+    <div className="min-h-0 flex-1 overflow-auto">
       <table className="w-full min-w-[720px] border-collapse text-[12px]">
         <thead>
           <tr>
