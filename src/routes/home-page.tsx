@@ -1,9 +1,19 @@
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
-import { ArrowUpRight, type LucideIcon } from "lucide-react";
+import {
+  ArrowUpRight,
+  FileSpreadsheet,
+  FolderTree,
+  type LucideIcon,
+  QrCode,
+  Repeat2,
+  Search,
+  Settings,
+  SlidersHorizontal,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import { MODULE_REGISTRY, type ModuleMeta } from "@/lib/registry";
-import { PADDING_CLASSES, PAGE_CONTAINER_CLASS } from "@/lib/spacing";
+import { PAGE_CONTAINER_CLASS, paddingToStyle } from "@/lib/spacing";
 import { useAppStore } from "@/store/app-store";
 
 const STATUS_META = {
@@ -16,11 +26,8 @@ export function HomePage() {
   const contentPadding = useAppStore((s) => s.contentPadding);
   return (
     <div
-      className={cn(
-        PAGE_CONTAINER_CLASS,
-        "relative min-h-full gap-10",
-        PADDING_CLASSES[contentPadding],
-      )}
+      className={cn(PAGE_CONTAINER_CLASS, "relative min-h-full gap-10")}
+      style={paddingToStyle(contentPadding)}
     >
       {/* Asymmetric hero — left aligned, no centered text */}
       <HeroSection />
@@ -33,18 +40,29 @@ export function HomePage() {
 
 function HeroSection() {
   return (
-    <section className="relative overflow-hidden rounded-xl border border-metallic bg-background-elevated/60 px-8 py-10 shadow-diffusion lg:px-12 lg:py-14 surface-hero glass-edge">
+    <section className="relative shrink-0 overflow-hidden rounded-xl border border-metallic bg-background-elevated/60 px-8 py-12 shadow-diffusion lg:px-12 lg:py-20 surface-hero glass-edge">
       <div className="absolute inset-0 surface-grid opacity-50" />
-      {/* A second, smaller accent halo for visual focal point. */}
+      {/* Ambient halos — pull focus away from the right edge so the
+          command-palette card reads as the visual anchor instead of empty
+          whitespace. */}
       <div
-        className="pointer-events-none absolute -right-24 -top-24 h-72 w-72 rounded-full opacity-60"
+        className="pointer-events-none absolute -right-32 -top-32 h-96 w-96 rounded-full opacity-50"
         style={{
           background:
             "radial-gradient(closest-side, var(--ambient-emerald), transparent 70%)",
         }}
       />
-      <div className="relative flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
-        <div className="flex max-w-2xl flex-col gap-4">
+      <div
+        className="pointer-events-none absolute -bottom-32 -left-24 h-72 w-72 rounded-full opacity-50"
+        style={{
+          background:
+            "radial-gradient(closest-side, var(--ambient-blue), transparent 70%)",
+        }}
+      />
+
+      <div className="relative grid items-end gap-10 lg:grid-cols-12 lg:gap-10">
+        {/* Title block — 7/12 columns */}
+        <div className="flex flex-col gap-6 lg:col-span-7">
           <motion.div
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
@@ -75,35 +93,150 @@ function HeroSection() {
             transition={{ duration: 0.6, delay: 0.1, ease: [0.16, 1, 0.3, 1] }}
             className="max-w-xl text-[15px] leading-relaxed text-foreground-muted"
           >
-            从 JavaFX/WorkbenchFX 重写而来。11 个内置模块，覆盖开发、文件、转换、效率四大场景，
-            每个都在本地 Rust 端跑，零上传、零依赖、零妥协。
+            一个模块专注一件事。开发、文件、转换、效率——每一类都有趁手的工具，
+            全部跑在本地 Rust 端，零上传、零依赖、零妥协。
           </motion.p>
+
+          {/* Inline category chips — replaces the deleted "11 modules / 2 ready
+              · 2 wip · 7 planned" stat block. Communicates scope without
+              numbers. */}
+          <motion.div
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, delay: 0.15, ease: [0.16, 1, 0.3, 1] }}
+            className="flex flex-wrap gap-1.5 pt-1"
+          >
+            {[
+              { label: "开发", icon: SlidersHorizontal },
+              { label: "文件", icon: FolderTree },
+              { label: "转换", icon: Repeat2 },
+              { label: "效率", icon: Settings },
+            ].map(({ label, icon: Icon }) => (
+              <span
+                key={label}
+                className="inline-flex items-center gap-1.5 rounded-full border border-border/60 bg-background-overlay/40 px-2.5 py-1 font-mono text-[11px] tracking-tight text-foreground-muted"
+              >
+                <Icon className="h-3 w-3" strokeWidth={1.75} />
+                {label}
+              </span>
+            ))}
+          </motion.div>
         </div>
 
+        {/* Command palette mock — 5/12 columns. The "right column" is now
+            a real product surface (a ⌘K search) instead of dead space. */}
         <motion.div
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, delay: 0.15, ease: [0.16, 1, 0.3, 1] }}
-          className="flex shrink-0 flex-col gap-2 lg:items-end"
+          initial={{ opacity: 0, y: 16, scale: 0.98 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          transition={{
+            duration: 0.7,
+            delay: 0.2,
+            ease: [0.16, 1, 0.3, 1],
+          }}
+          className="lg:col-span-5"
         >
-          <div className="flex items-baseline gap-1.5 font-mono">
-            <span className="bg-gradient-to-br from-foreground to-foreground-muted bg-clip-text text-5xl font-semibold tracking-tighter text-transparent">
-              11
-            </span>
-            <span className="text-sm text-foreground-muted">个模块</span>
-          </div>
-          <div className="flex items-center gap-2 text-[11px] text-foreground-muted">
-            <span className="h-1 w-1 rounded-full bg-accent-emerald" />
-            <span className="font-mono">2 ready</span>
-            <span className="h-1 w-1 rounded-full bg-accent-amber" />
-            <span className="font-mono">2 wip</span>
-            <span className="h-1 w-1 rounded-full bg-foreground-subtle" />
-            <span className="font-mono">7 planned</span>
-          </div>
+          <CommandPaletteMock />
         </motion.div>
       </div>
     </section>
   );
+}
+
+// ---------------------------------------------------------------------------
+// Command-palette mock — the visual anchor of the hero's right column.
+// Communicates "this is a tool box with quick-launch" instead of listing
+// numbers.
+// ---------------------------------------------------------------------------
+
+interface PaletteItem {
+  icon: LucideIcon;
+  name: string;
+  hint: string;
+  /** Visual status of the underlying module. */
+  status: "wip" | "ready" | "planned";
+}
+
+const PALETTE_ITEMS: PaletteItem[] = [
+  { icon: QrCode, name: "二维码", hint: "生成 / 解析", status: "wip" },
+  {
+    icon: FileSpreadsheet,
+    name: "Excel → JSON",
+    hint: "结构化多 sheet",
+    status: "wip",
+  },
+  { icon: Repeat2, name: "Excel 转置", hint: "行列互换 + 字段映射", status: "planned" },
+  { icon: FolderTree, name: "文件树", hint: "本地目录可视化", status: "planned" },
+  { icon: Settings, name: "偏好设置", hint: "主题 / 快捷键", status: "planned" },
+];
+
+function CommandPaletteMock() {
+  return (
+    <div className="overflow-hidden rounded-xl border border-border/60 bg-background-elevated/80 shadow-diffusion glass-edge backdrop-blur">
+      {/* Search row */}
+      <div className="flex items-center gap-2.5 border-b border-border/60 px-3.5 py-3">
+        <Search className="h-3.5 w-3.5 text-foreground-muted" strokeWidth={1.75} />
+        <span className="flex-1 font-mono text-[12px] tracking-tight text-foreground-muted">
+          搜索模块…
+        </span>
+        <kbd className="rounded border border-border/60 bg-background-overlay/60 px-1.5 py-0.5 font-mono text-[10px] tracking-tight text-foreground-muted">
+          ⌘ K
+        </kbd>
+      </div>
+
+      {/* Result list */}
+      <ul className="divide-y divide-border/40 px-1 py-1">
+        {PALETTE_ITEMS.map((item, i) => (
+          <motion.li
+            key={item.name}
+            initial={{ opacity: 0, x: 6 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{
+              duration: 0.35,
+              delay: 0.4 + i * 0.05,
+              ease: [0.16, 1, 0.3, 1],
+            }}
+            className={cn(
+              "flex items-center gap-2.5 rounded-md px-2.5 py-1.5 transition-colors",
+              i === 0
+                ? "bg-primary/[0.08] text-foreground"
+                : "text-foreground-muted hover:bg-accent/40 hover:text-foreground",
+            )}
+          >
+            <item.icon className="h-3.5 w-3.5 shrink-0" strokeWidth={1.75} />
+            <span className="font-mono text-[12px] tracking-tight">
+              {item.name}
+            </span>
+            <span className="flex-1 truncate font-mono text-[11px] text-foreground-subtle">
+              {item.hint}
+            </span>
+            <StatusDot status={item.status} />
+          </motion.li>
+        ))}
+      </ul>
+
+      {/* Footer hint */}
+      <div className="flex items-center justify-between border-t border-border/60 bg-background-overlay/30 px-3.5 py-2 font-mono text-[10px] tracking-tight text-foreground-subtle">
+        <span>↑ ↓ 选择</span>
+        <span>⏎ 打开</span>
+        <span>esc 关闭</span>
+      </div>
+    </div>
+  );
+}
+
+function StatusDot({ status }: { status: PaletteItem["status"] }) {
+  if (status === "ready") {
+    return <span className="h-1.5 w-1.5 rounded-full bg-accent-emerald" />;
+  }
+  if (status === "wip") {
+    return (
+      <span className="relative flex h-1.5 w-1.5">
+        <span className="absolute inset-0 animate-ping rounded-full bg-accent-amber/60" />
+        <span className="relative inline-block h-1.5 w-1.5 rounded-full bg-accent-amber" />
+      </span>
+    );
+  }
+  return <span className="h-1.5 w-1.5 rounded-full bg-foreground-subtle" />;
 }
 
 function BentoGrid() {
@@ -129,9 +262,6 @@ function BentoGrid() {
         <h2 className="text-[11px] font-medium uppercase tracking-[0.12em] text-foreground-muted">
           所有模块
         </h2>
-        <span className="font-mono text-[11px] text-foreground-subtle">
-          {MODULE_REGISTRY.length} / 11
-        </span>
       </div>
 
       <motion.div
