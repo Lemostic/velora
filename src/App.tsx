@@ -8,6 +8,8 @@ import { FileTreePage } from "@/routes/file-treeview-page";
 import { ZipCleanPage } from "@/routes/zip-clean-page";
 import { XmlJsonPage } from "@/routes/xml-json-page";
 import { MarkitdownPage } from "@/routes/markitdown-page";
+import { ProcessManagerPage } from "@/routes/process-manager-page";
+import { EsQueryPage } from "@/routes/es-query-page";
 import { ComingSoonPage } from "@/routes/coming-soon-page";
 import { PreferencesPage } from "@/routes/preferences-page";
 import { NotFoundPage } from "@/routes/not-found-page";
@@ -43,11 +45,11 @@ const router = createBrowserRouter([
       },
       {
         path: "modules/process-manager",
-        element: <ComingSoonPage moduleId="process-manager" />,
+        element: <ProcessManagerPage />,
       },
       {
         path: "modules/es-query",
-        element: <ComingSoonPage moduleId="es-query" />,
+        element: <EsQueryPage />,
       },
       {
         path: "modules/excel-schedule",

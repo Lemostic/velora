@@ -196,11 +196,11 @@ export const MODULE_REGISTRY: ModuleMeta[] = [
     category: "devtools",
     description: "查看本机进程、CPU/内存占用、结束进程",
     longDescription:
-      "用 Rust 端 `sysinfo` crate 拉本机进程列表，按 CPU/内存/启动时间排序，搜索 PID / 名称 / 路径，一键结束进程（带二次确认）。\n\n数据每 2 秒刷新一次，比任务管理器更轻量、更易过滤。",
-    tags: ["待实现", "sysinfo", "实时刷新"],
+      "用 Rust 端 `sysinfo` crate 拉本机进程列表，按 PID/名称/CPU/内存排序，搜索 PID / 名称 / 路径，一键结束进程（带二次确认）。\n\n数据可每 2 秒刷新一次，比任务管理器更轻量、更易过滤。",
+    tags: ["sysinfo", "实时刷新", "跨平台"],
     icon: Cpu,
     path: "/modules/process-manager",
-    status: "planned",
+    status: "ready",
   },
   {
     id: "es-query",
@@ -208,11 +208,11 @@ export const MODULE_REGISTRY: ModuleMeta[] = [
     category: "search",
     description: "Elasticsearch 可视化查询",
     longDescription:
-      "连接 Elasticsearch 集群（多套环境可保存），可视化构建查询、查看结果分页、字段统计、保存常用查询。Rust 端用官方 `elasticsearch` 客户端。\n\n支持 DSL 模式和表单模式切换，结果可导出 JSON / CSV。",
-    tags: ["待实现", "多集群", "DSL"],
+      "连接 Elasticsearch / OpenSearch 集群（支持 Basic Auth），拉索引列表，编辑 JSON DSL 查 _search，结果展示 source + score + 索引名。\n\n后端走 reqwest 直连，绕开 elasticsearch crate 的依赖臃肿。",
+    tags: ["reqwest", "REST", "DSL"],
     icon: Search,
     path: "/modules/es-query",
-    status: "planned",
+    status: "ready",
   },
   {
     id: "excel-schedule",
