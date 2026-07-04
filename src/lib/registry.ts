@@ -1,23 +1,41 @@
-// 前端模块元数据 — 与 src-tauri/src/modules/registry.rs 保持一致
+// 前端模块元数据 — 与后端 `list_modules` 命令语义保持一致。
 //
-// 数据来源优先用 Tauri 后端 `list_modules` 命令（运行时从 Rust 拉取），
-// 这份静态表是降级方案：后端拉不到时用这个保证 NavRail 至少有骨架。
+// 真正的数据源是 Tauri 后端命令（运行时从 Rust 拉取）；
+// 这份静态表是降级方案：后端拉不到时用这个保证 NavRail / Cmd+K 仍有骨架。
 
 import {
   ArrowLeftRight,
+  Binary,
+  Braces,
+  Clock,
   Cpu,
+  Diff,
+  type LucideIcon,
   FileArchive,
   FileSpreadsheet,
   FileText,
   FolderTree,
   GanttChartSquare,
-  type LucideIcon,
+  Hash,
+  KeyRound,
+  Palette,
   QrCode,
+  Regex,
   Repeat,
+  ScrollText,
   Search,
   Settings,
+  ShieldCheck,
 } from "lucide-react";
 
+/**
+ * ModuleId 是模块路由段的 TS 字面量联合。
+ * 新增模块时：
+ *  1) 在这里加 id；
+ *  2) 加 `MODULE_REGISTRY` 里的一行；
+ *  3) 同步 src-tauri/src/modules/registry.rs 的 id 字符串。
+ *  4) 在 App.tsx 加路由。
+ */
 export type ModuleId =
   | "qrcode"
   | "excel-to-json"
@@ -29,7 +47,14 @@ export type ModuleId =
   | "process-manager"
   | "es-query"
   | "excel-schedule"
-  | "preferences";
+  | "preferences"
+  | "json-formatter"
+  | "regex-tester"
+  | "base64-codec"
+  | "url-codec"
+  | "hash-tool"
+  | "jwt-decoder"
+  | "uuid-gen";
 
 export type ModuleCategory =
   | "tools"
@@ -43,13 +68,13 @@ export type ModuleCategory =
 export interface ModuleMeta {
   id: ModuleId;
   name: string;
-  category: ModuleCategory;
-  /** 卡片上一句话简介 */
+  /** 一句话简介，bento 卡片用 */
   description: string;
-  /** 模块页面里展示的详细说明（多段） */
+  /** 模块页面里展示的详细说明（多段，分隔符 \n\n） */
   longDescription?: string;
   /** 标签：阶段、特性、依赖等 */
   tags?: string[];
+  category: ModuleCategory;
   icon: LucideIcon;
   path: string;
   status: "ready" | "wip" | "planned";
@@ -67,9 +92,20 @@ const ICON_MAP: Record<string, LucideIcon> = {
   Search,
   GanttChartSquare,
   Settings,
+  Braces,
+  Regex,
+  Binary,
+  Hash,
+  KeyRound,
+  ShieldCheck,
+  ScrollText,
+  Diff,
+  Palette,
+  Clock,
 };
 
 export const MODULE_REGISTRY: ModuleMeta[] = [
+  // ─── 原 11 个模块（保留原文案 + 拓展描述） ─────────────────────
   {
     id: "qrcode",
     name: "二维码",
@@ -100,7 +136,7 @@ export const MODULE_REGISTRY: ModuleMeta[] = [
     category: "tools",
     description: "行列互换 + 字段映射",
     longDescription:
-      "把 Excel 表格行列互换，配合字段映射把横向数据转成纵向记录。常见用途：把「汇总宽表」转成「长表」喂给 BI 工具或数据库。\n\n待实现：自定义字段重命名、空值处理、批量转置多个 sheet。",
+      "把 Excel 表格行列互换，配合字段映射把横向数据转成纵向记录。常见用途：把「汇总宽表」转成「长表」喂给 BI 工具或数据库。",
     tags: ["待实现", "宽转长"],
     icon: Repeat,
     path: "/modules/excel-transpose",
@@ -202,6 +238,92 @@ export const MODULE_REGISTRY: ModuleMeta[] = [
     path: "/modules/preferences",
     status: "planned",
   },
+
+  // ─── 新增 7 个 dev-utility 模块 ──────────────────────────────────
+  {
+    id: "json-formatter",
+    name: "JSON 格式化",
+    category: "devtools",
+    description: "实时格式化 / 校验 / 折叠展开 JSON",
+    longDescription:
+      "粘一段 JSON 进去，左边输入，右边立刻看到格式化结果和高亮。错误位置会在错误指针处精确给出，indent 2/4/Tab 切换、自动检测非法尾逗号、单引号转双引号。\n\n完全在浏览器本地完成，零网络。",
+    tags: ["纯本地", "实时"],
+    icon: Braces,
+    path: "/modules/json-formatter",
+    status: "ready",
+  },
+  {
+    id: "regex-tester",
+    name: "正则测试",
+    category: "devtools",
+    description: "实时高亮正则匹配 + capture group 表格",
+    longDescription:
+      "输入 pattern 和测试串，每按键一次实时匹配并把 hits 高亮在原文上。所有 capture group 表格展示，命中的 index 范围一目了然。flag 开关(i / m / s / x / u)即时生效。",
+    tags: ["纯本地", "实时高亮"],
+    icon: Regex,
+    path: "/modules/regex-tester",
+    status: "ready",
+  },
+  {
+    id: "base64-codec",
+    name: "Base64 编解码",
+    category: "devtools",
+    description: "文本 / 文件 与 Base64 互转，支持 URL-safe",
+    longDescription:
+      "标准 Base64 和 URL-safe Base64 双输出，文本编码与解码共用输入框，自动判断输入合法性，UTF-8 安全。",
+    tags: ["纯本地"],
+    icon: Binary,
+    path: "/modules/base64-codec",
+    status: "ready",
+  },
+  {
+    id: "url-codec",
+    name: "URL 编解码",
+    category: "devtools",
+    description: "encodeURI / encodeURIComponent 双向",
+    longDescription:
+      "一个框同时看 encodeURI 和 encodeURIComponent 的差异。带「URL 解析」子面板，把 query string 拆成 key/value 表。",
+    tags: ["纯本地"],
+    icon: Hash,
+    path: "/modules/url-codec",
+    status: "ready",
+  },
+  {
+    id: "hash-tool",
+    name: "哈希计算",
+    category: "devtools",
+    description: "md5 / sha1 / sha256 / sha512 / blake3 一键计算",
+    longDescription:
+      "输入文本或拖入文件，并行列出五种算法的 hex 结果，一键复制。流式计算大文件不卡 UI。",
+    tags: ["纯本地"],
+    icon: ShieldCheck,
+    path: "/modules/hash-tool",
+    status: "ready",
+  },
+  {
+    id: "jwt-decoder",
+    name: "JWT 解码",
+    category: "devtools",
+    description: "header / payload 一键查看，可选验签",
+    longDescription:
+      "粘一段 JWT token，自动分段展示 header / payload / signature，可选填 HS256 secret 或公钥对 RS256 验签，结果用 ✓/✗ 大字呈现。",
+    tags: ["纯本地", "可选验签"],
+    icon: KeyRound,
+    path: "/modules/jwt-decoder",
+    status: "ready",
+  },
+  {
+    id: "uuid-gen",
+    name: "UUID 生成",
+    category: "devtools",
+    description: "v1 / v4 / v5 一键批量生成",
+    longDescription:
+      "数量 spin 选定一次生成几个，版本切换 v1/v4/v5(v5 需要 namespace + name)。所有结果一行一个，蓝点点击单条复制，整列表可一键导出成 txt。",
+    tags: ["纯本地", "批量"],
+    icon: ScrollText,
+    path: "/modules/uuid-gen",
+    status: "ready",
+  },
 ];
 
 export const CATEGORY_LABELS: Record<ModuleCategory, string> = {
@@ -221,4 +343,14 @@ export function getModule(id: ModuleId): ModuleMeta | undefined {
 /** 把后端返回的字符串 icon 名映射到 lucide 图标组件（仅作为降级） */
 export function iconFromName(name: string): LucideIcon {
   return ICON_MAP[name] ?? Settings;
+}
+
+/**
+ * 过滤出启用的模块。默认所有模块启用；当用户在前端 Preferences 关掉时，
+ * 会从 disabledModules 数组里剔除对应项。
+ */
+export function enabledModules(disabledIds: readonly string[]): ModuleMeta[] {
+  if (disabledIds.length === 0) return MODULE_REGISTRY;
+  const set = new Set(disabledIds);
+  return MODULE_REGISTRY.filter((m) => !set.has(m.id));
 }
