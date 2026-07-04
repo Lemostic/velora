@@ -220,11 +220,11 @@ export const MODULE_REGISTRY: ModuleMeta[] = [
     category: "productivity",
     description: "Excel 排期 + 甘特图 + 多维度过滤 + Owner 统计",
     longDescription:
-      "主力模块。功能：上传项目排期 Excel（多日期格式自动识别）→ 解析任务 / 负责人 / 工作类型 → 渲染甘特图 → 按类型/环节/责任人多维过滤 → 导出新 Excel。\n\n核心算法基于 `ScheduleEngine` + `OwnerStatsCalculator`，UI 用 `frappe-gantt` / `dhtmlx-gantt` 渲染。",
-    tags: ["主力模块", "第 3 阶段", "几百人天级项目"],
+      "主力模块。功能：上传项目排期 Excel（多日期格式自动识别）→ 解析任务 / 负责人 / 类型 / 阶段 / 日期 → 渲染甘特图 → 按负责人 / 类型过滤 + 关键字搜索 → 按 owner / 类型统计 → 导出过滤后的新 Excel。\n\n后端：calamine 读 + rust_xlsxwriter 写 + chrono 日期解析。",
+    tags: ["calamine", "chrono", "rust_xlsxwriter"],
     icon: GanttChartSquare,
     path: "/modules/excel-schedule",
-    status: "planned",
+    status: "ready",
   },
   {
     id: "preferences",

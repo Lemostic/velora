@@ -45,7 +45,7 @@ velora-modules = { path = "crates/velora-modules" }
 # velora-modules in P2)
 qrcode = { version = "0.14", default-features = false, features = ["image"] }
 image = { version = "0.25", default-features = false, features = ["png"] }
-calamine = "0.26"
+calamine = { version = "0.26", features = ["dates"] }
 base64 = "0.22"
 rust_xlsxwriter = "0.79"
 walkdir = "2.5"
@@ -54,4 +54,5 @@ sha2 = "0.10"
 quick-xml = { version = "0.36", features = ["serialize"] }
 sysinfo = "0.32"
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls", "blocking"] }
+chrono = { version = "0.4", default-features = false, features = ["clock"] }
 

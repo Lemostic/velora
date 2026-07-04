@@ -8,9 +8,9 @@ import { FileTreePage } from "@/routes/file-treeview-page";
 import { ZipCleanPage } from "@/routes/zip-clean-page";
 import { XmlJsonPage } from "@/routes/xml-json-page";
 import { MarkitdownPage } from "@/routes/markitdown-page";
+import { ExcelSchedulePage } from "@/routes/excel-schedule-page";
 import { ProcessManagerPage } from "@/routes/process-manager-page";
 import { EsQueryPage } from "@/routes/es-query-page";
-import { ComingSoonPage } from "@/routes/coming-soon-page";
 import { PreferencesPage } from "@/routes/preferences-page";
 import { NotFoundPage } from "@/routes/not-found-page";
 import { useTheme } from "@/hooks/use-theme";
@@ -53,7 +53,7 @@ const router = createBrowserRouter([
       },
       {
         path: "modules/excel-schedule",
-        element: <ComingSoonPage moduleId="excel-schedule" />,
+        element: <ExcelSchedulePage />,
       },
       { path: "modules/preferences", element: <PreferencesPage /> },
       { path: "*", element: <NotFoundPage /> },

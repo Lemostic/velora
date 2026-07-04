@@ -11,6 +11,7 @@ mod plugins_ext;
 use modules::{
     es_query::{es_list_indices, es_query},
     excel::{ExcelToJsonRequest, ExcelToJsonResult},
+    excel_schedule::{excel_schedule_export, excel_schedule_parse},
     excel_transpose::{excel_transpose, excel_transpose_preview},
     file_treeview::scan_tree,
     markitdown::markitdown_run,
@@ -143,7 +144,9 @@ pub fn run() {
             list_processes,
             kill_process,
             es_query,
-            es_list_indices
+            es_list_indices,
+            excel_schedule_parse,
+            excel_schedule_export
         ])
         .run(tauri::generate_context!())
         .expect("error while running Velora");

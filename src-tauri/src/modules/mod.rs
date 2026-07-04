@@ -2,6 +2,7 @@
 
 pub mod es_query;
 pub mod excel;
+pub mod excel_schedule;
 pub mod excel_transpose;
 pub mod file_treeview;
 pub mod markitdown;
