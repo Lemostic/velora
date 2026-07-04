@@ -349,7 +349,7 @@ export function ExcelTransposePage() {
         </Card>
 
         {/* ── RIGHT: preview ─────────────────────────────────────── */}
-        <Card className="flex min-h-0 flex-col">
+        <Card>
           <CardHeader>
             <div className="flex items-center justify-between">
               <div>
@@ -368,7 +368,7 @@ export function ExcelTransposePage() {
               )}
             </div>
           </CardHeader>
-          <CardContent className="flex min-h-0 flex-1 flex-col p-0">
+          <CardContent className="p-6">
             <PreviewTable preview={preview} loading={loadingPreview} />
           </CardContent>
         </Card>
@@ -559,15 +559,16 @@ function PreviewTable({
   preview: TransposePreview | null;
   loading: boolean;
 }) {
-  // All three states share the same flex slot — fills its parent
-  // CardContent without imposing a minimum height. The empty /
-  // loading branches stretch to match, the data branch scrolls
-  // internally if it overflows.
-  const wrapperClass = "flex flex-1 min-h-0 items-center justify-center";
+  // Fixed-height region (480 px) on every state. Empty/loading states
+  // center their content vertically so the top/bottom margin to the
+  // Card border is symmetric. The data branch keeps the same height
+  // and scrolls internally when rows overflow.
+  const fixedWrap = "h-[480px] flex items-center justify-center";
+  const tableWrap = "h-[480px] flex flex-col";
 
   if (loading) {
     return (
-      <div className={cn(wrapperClass, "gap-2 text-sm text-foreground-muted")}>
+      <div className={cn(fixedWrap, "gap-2 text-sm text-foreground-muted")}>
         <Loader2 className="h-4 w-4 animate-spin" />
         正在计算…
       </div>
@@ -575,7 +576,7 @@ function PreviewTable({
   }
   if (!preview) {
     return (
-      <div className={cn(wrapperClass, "flex-col gap-3 text-foreground-muted")}>
+      <div className={cn(fixedWrap, "flex-col gap-3 text-foreground-muted")}>
         <span className="grid h-12 w-12 place-items-center rounded-full border border-dashed border-border/80">
           <RotateCw className="h-5 w-5 opacity-60" />
         </span>
@@ -585,7 +586,7 @@ function PreviewTable({
   }
   if (preview.rows.length === 0) {
     return (
-      <div className={cn(wrapperClass, "flex-col gap-2 text-foreground-muted")}>
+      <div className={cn(fixedWrap, "flex-col gap-2 text-foreground-muted")}>
         <span className="text-sm">没有数据</span>
         <span className="font-mono text-[11px] text-foreground-subtle">
           确认 key 列和字段列都选择了
@@ -594,7 +595,7 @@ function PreviewTable({
     );
   }
   return (
-    <ScrollArea className="min-h-0 flex-1">
+    <ScrollArea className={tableWrap}>
       <table className="w-full border-collapse text-[12px]">
         <thead className="sticky top-0 z-[1] bg-background-overlay/95 backdrop-blur">
           <tr>
