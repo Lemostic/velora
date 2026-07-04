@@ -20,7 +20,6 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { ModuleHeader } from "@/components/module/module-header";
 import { useAppStore } from "@/store/app-store";
 import { PAGE_CONTAINER_CLASS, paddingToStyle } from "@/lib/spacing";
@@ -559,16 +558,17 @@ function PreviewTable({
   preview: TransposePreview | null;
   loading: boolean;
 }) {
-  // Fixed-height region (480 px) on every state. Empty/loading states
-  // center their content vertically so the top/bottom margin to the
-  // Card border is symmetric. The data branch keeps the same height
-  // and scrolls internally when rows overflow.
-  const fixedWrap = "h-[480px] flex items-center justify-center";
-  const tableWrap = "h-[480px] flex flex-col";
+  // Fixed-height region for the empty / loading branches so they
+  // sit at the same vertical center as the data branch.
+  // Data branch is NOT forced to a fixed height -- the table is
+  // allowed to take its natural height. If the table is taller
+  // than the viewport, the outer <main> scrolls; if it's shorter,
+  // there's no empty band below the last row.
+  const emptyWrap = "min-h-[420px] flex items-center justify-center";
 
   if (loading) {
     return (
-      <div className={cn(fixedWrap, "gap-2 text-sm text-foreground-muted")}>
+      <div className={cn(emptyWrap, "gap-2 text-sm text-foreground-muted")}>
         <Loader2 className="h-4 w-4 animate-spin" />
         正在计算…
       </div>
@@ -576,7 +576,7 @@ function PreviewTable({
   }
   if (!preview) {
     return (
-      <div className={cn(fixedWrap, "flex-col gap-3 text-foreground-muted")}>
+      <div className={cn(emptyWrap, "flex-col gap-3 text-foreground-muted")}>
         <span className="grid h-12 w-12 place-items-center rounded-full border border-dashed border-border/80">
           <RotateCw className="h-5 w-5 opacity-60" />
         </span>
@@ -586,7 +586,7 @@ function PreviewTable({
   }
   if (preview.rows.length === 0) {
     return (
-      <div className={cn(fixedWrap, "flex-col gap-2 text-foreground-muted")}>
+      <div className={cn(emptyWrap, "flex-col gap-2 text-foreground-muted")}>
         <span className="text-sm">没有数据</span>
         <span className="font-mono text-[11px] text-foreground-subtle">
           确认 key 列和字段列都选择了
@@ -595,14 +595,14 @@ function PreviewTable({
     );
   }
   return (
-    <ScrollArea className={tableWrap}>
+    <div className="overflow-x-auto">
       <table className="w-full border-collapse text-[12px]">
-        <thead className="sticky top-0 z-[1] bg-background-overlay/95 backdrop-blur">
+        <thead>
           <tr>
             {preview.headers.map((h, i) => (
               <th
                 key={i}
-                className="border-b border-border/60 px-3 py-2 text-left font-mono text-[11px] font-medium uppercase tracking-[0.06em] text-foreground-muted"
+                className="sticky top-0 border-b border-border/60 bg-background-overlay/95 px-3 py-2 text-left font-mono text-[11px] font-medium uppercase tracking-[0.06em] text-foreground-muted backdrop-blur"
               >
                 {h}
               </th>
@@ -629,6 +629,6 @@ function PreviewTable({
           ))}
         </tbody>
       </table>
-    </ScrollArea>
+    </div>
   );
 }
