@@ -2,19 +2,18 @@ import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import {
   ArrowUpRight,
-  FileSpreadsheet,
+  Command,
   FolderTree,
   type LucideIcon,
-  QrCode,
   Repeat2,
-  Search,
-  Settings,
+  Settings as SettingsIcon,
   SlidersHorizontal,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { MODULE_REGISTRY, type ModuleMeta } from "@/lib/registry";
+import { MODULE_REGISTRY, enabledModules, type ModuleMeta } from "@/lib/registry";
 import { PAGE_CONTAINER_CLASS, paddingToStyle } from "@/lib/spacing";
 import { useAppStore } from "@/store/app-store";
+import { usePluginStore } from "@/store/plugin-store";
 
 const STATUS_META = {
   ready: { label: "已上线", dot: "bg-accent-emerald" },
@@ -97,9 +96,6 @@ function HeroSection() {
             全部跑在本地 Rust 端，零上传、零依赖、零妥协。
           </motion.p>
 
-          {/* Inline category chips — replaces the deleted "11 modules / 2 ready
-              · 2 wip · 7 planned" stat block. Communicates scope without
-              numbers. */}
           <motion.div
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
@@ -110,7 +106,7 @@ function HeroSection() {
               { label: "开发", icon: SlidersHorizontal },
               { label: "文件", icon: FolderTree },
               { label: "转换", icon: Repeat2 },
-              { label: "效率", icon: Settings },
+              { label: "效率", icon: SettingsIcon },
             ].map(({ label, icon: Icon }) => (
               <span
                 key={label}
@@ -123,8 +119,9 @@ function HeroSection() {
           </motion.div>
         </div>
 
-        {/* Command palette mock — 5/12 columns. The "right column" is now
-            a real product surface (a ⌘K search) instead of dead space. */}
+
+        {/* Quick palette hint — single chip that demos the keyboard
+            shortcut. The real palette is mounted in AppShell. */}
         <motion.div
           initial={{ opacity: 0, y: 16, scale: 0.98 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
@@ -135,7 +132,7 @@ function HeroSection() {
           }}
           className="lg:col-span-5"
         >
-          <CommandPaletteMock />
+          <PaletteHint />
         </motion.div>
       </div>
     </section>
@@ -143,103 +140,44 @@ function HeroSection() {
 }
 
 // ---------------------------------------------------------------------------
-// Command-palette mock — the visual anchor of the hero's right column.
-// Communicates "this is a tool box with quick-launch" instead of listing
-// numbers.
+// Palette hint — a single keyboard-shortcut chip that opens the real palette.
+// Communicates "this app has Cmd+K" without faking a fake list.
 // ---------------------------------------------------------------------------
 
-interface PaletteItem {
-  icon: LucideIcon;
-  name: string;
-  hint: string;
-  /** Visual status of the underlying module. */
-  status: "wip" | "ready" | "planned";
-}
-
-const PALETTE_ITEMS: PaletteItem[] = [
-  { icon: QrCode, name: "二维码", hint: "生成 / 解析", status: "wip" },
-  {
-    icon: FileSpreadsheet,
-    name: "Excel → JSON",
-    hint: "结构化多 sheet",
-    status: "wip",
-  },
-  { icon: Repeat2, name: "Excel 转置", hint: "行列互换 + 字段映射", status: "planned" },
-  { icon: FolderTree, name: "文件树", hint: "本地目录可视化", status: "planned" },
-  { icon: Settings, name: "偏好设置", hint: "主题 / 快捷键", status: "planned" },
-];
-
-function CommandPaletteMock() {
+function PaletteHint() {
   return (
-    <div className="overflow-hidden rounded-xl border border-border/60 bg-background-elevated/80 shadow-diffusion glass-edge backdrop-blur">
-      {/* Search row */}
-      <div className="flex items-center gap-2.5 border-b border-border/60 px-3.5 py-3">
-        <Search className="h-3.5 w-3.5 text-foreground-muted" strokeWidth={1.75} />
-        <span className="flex-1 font-mono text-[12px] tracking-tight text-foreground-muted">
-          搜索模块…
+    <button
+      type="button"
+      onClick={() => window.dispatchEvent(new CustomEvent("velora:open-palette"))}
+      className={cn(
+        "group flex w-full items-center justify-between gap-3 rounded-xl",
+        "border border-border/60 bg-background-elevated/80 px-4 py-3.5 shadow-diffusion glass-edge backdrop-blur",
+        "transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]",
+        "hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-glow",
+      )}
+    >
+      <span className="flex items-center gap-3">
+        <span className="grid h-9 w-9 place-items-center rounded-lg border border-primary/30 bg-primary/[0.08] text-primary">
+          <Command className="h-4 w-4" strokeWidth={1.75} />
         </span>
-        <kbd className="rounded border border-border/60 bg-background-overlay/60 px-1.5 py-0.5 font-mono text-[10px] tracking-tight text-foreground-muted">
-          ⌘ K
-        </kbd>
-      </div>
-
-      {/* Result list */}
-      <ul className="divide-y divide-border/40 px-1 py-1">
-        {PALETTE_ITEMS.map((item, i) => (
-          <motion.li
-            key={item.name}
-            initial={{ opacity: 0, x: 6 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{
-              duration: 0.35,
-              delay: 0.4 + i * 0.05,
-              ease: [0.16, 1, 0.3, 1],
-            }}
-            className={cn(
-              "flex items-center gap-2.5 rounded-md px-2.5 py-1.5 transition-colors",
-              i === 0
-                ? "bg-primary/[0.08] text-foreground"
-                : "text-foreground-muted hover:bg-accent/40 hover:text-foreground",
-            )}
-          >
-            <item.icon className="h-3.5 w-3.5 shrink-0" strokeWidth={1.75} />
-            <span className="font-mono text-[12px] tracking-tight">
-              {item.name}
-            </span>
-            <span className="flex-1 truncate font-mono text-[11px] text-foreground-subtle">
-              {item.hint}
-            </span>
-            <StatusDot status={item.status} />
-          </motion.li>
-        ))}
-      </ul>
-
-      {/* Footer hint */}
-      <div className="flex items-center justify-between border-t border-border/60 bg-background-overlay/30 px-3.5 py-2 font-mono text-[10px] tracking-tight text-foreground-subtle">
-        <span>↑ ↓ 选择</span>
-        <span>⏎ 打开</span>
-        <span>esc 关闭</span>
-      </div>
-    </div>
+        <span className="flex flex-col items-start leading-tight">
+          <span className="font-mono text-[12px] tracking-tight text-foreground">
+            按一下就能跳到任何模块
+          </span>
+          <span className="font-mono text-[10px] text-foreground-muted">
+            支持 id / 名称 / 描述模糊搜
+          </span>
+        </span>
+      </span>
+      <kbd className="rounded border border-border/60 bg-background-overlay/60 px-2 py-1 font-mono text-[11px] font-medium tracking-tight text-foreground-muted">
+        Ctrl K
+      </kbd>
+    </button>
   );
 }
 
-function StatusDot({ status }: { status: PaletteItem["status"] }) {
-  if (status === "ready") {
-    return <span className="h-1.5 w-1.5 rounded-full bg-accent-emerald" />;
-  }
-  if (status === "wip") {
-    return (
-      <span className="relative flex h-1.5 w-1.5">
-        <span className="absolute inset-0 animate-ping rounded-full bg-accent-amber/60" />
-        <span className="relative inline-block h-1.5 w-1.5 rounded-full bg-accent-amber" />
-      </span>
-    );
-  }
-  return <span className="h-1.5 w-1.5 rounded-full bg-foreground-subtle" />;
-}
-
 function BentoGrid() {
+  const disabledModules = usePluginStore((s) => s.disabledModules);
   // Define explicit asymmetric placements for the 11 modules.
   // Span values are based on a 6-col / auto-row grid.
   const layout: Record<string, BentoSpan> = {
@@ -256,11 +194,21 @@ function BentoGrid() {
     "preferences": { col: "col-span-2", row: "row-span-1", size: "md" },
   };
 
+  // Top of bento grid: only enabled modules, plus a "more" link to the palette
+  // if the user has hidden any. Disabled modules are still discoverable via
+  // Cmd+K; the preferences page is where you re-enable them.
+  const visible = enabledModules(disabledModules)
+    .filter((m) => m.id in layout)
+    .concat(
+      // Pad the layout with the dev-utility cards when the layout is short.
+      enabledModules(disabledModules).filter((m) => !(m.id in layout)),
+    );
+
   return (
     <section className="space-y-4">
       <div className="flex items-end justify-between">
         <h2 className="text-[11px] font-medium uppercase tracking-[0.12em] text-foreground-muted">
-          所有模块
+          所有模块 · {visible.length} / {MODULE_REGISTRY.length}
         </h2>
       </div>
 
@@ -273,7 +221,7 @@ function BentoGrid() {
           show: { transition: { staggerChildren: 0.04, delayChildren: 0.1 } },
         }}
       >
-        {MODULE_REGISTRY.map((m) => (
+        {visible.map((m) => (
           <BentoTile
             key={m.id}
             module={m}

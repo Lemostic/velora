@@ -4,6 +4,7 @@ import { Outlet } from "react-router-dom";
 import { motion } from "framer-motion";
 import { NavRail } from "@/components/nav/nav-rail";
 import { TopBar } from "@/components/layout/top-bar";
+import { CommandPalette } from "@/components/palette/command-palette";
 import { useAppStore } from "@/store/app-store";
 import { TooltipProvider } from "@/components/ui/tooltip";
 
@@ -54,6 +55,9 @@ export function AppShell() {
           </main>
         </div>
       </motion.div>
+
+      {/* Global Cmd/Ctrl+K palette. Listens for the shortcut inside. */}
+      <CommandPalette />
     </TooltipProvider>
   );
 }
