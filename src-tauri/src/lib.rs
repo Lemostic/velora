@@ -10,6 +10,7 @@ mod plugins_ext;
 
 use modules::{
     excel::{ExcelToJsonRequest, ExcelToJsonResult},
+    excel_transpose::{excel_transpose, excel_transpose_preview},
     qrcode::qrcode_encode,
     registry::ModuleRegistry,
 };
@@ -125,7 +126,9 @@ pub fn run() {
             app_info,
             list_modules,
             qrcode_encode,
-            excel_to_json
+            excel_to_json,
+            excel_transpose_preview,
+            excel_transpose
         ])
         .run(tauri::generate_context!())
         .expect("error while running Velora");

@@ -47,4 +47,5 @@ qrcode = { version = "0.14", default-features = false, features = ["image"] }
 image = { version = "0.25", default-features = false, features = ["png"] }
 calamine = "0.26"
 base64 = "0.22"
+rust_xlsxwriter = "0.79"
 

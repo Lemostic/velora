@@ -3,6 +3,7 @@ import { AppShell } from "@/components/layout/app-shell";
 import { HomePage } from "@/routes/home-page";
 import { QRCodePage } from "@/routes/qrcode-page";
 import { ExcelToJsonPage } from "@/routes/excel-to-json-page";
+import { ExcelTransposePage } from "@/routes/excel-transpose-page";
 import { ComingSoonPage } from "@/routes/coming-soon-page";
 import { PreferencesPage } from "@/routes/preferences-page";
 import { NotFoundPage } from "@/routes/not-found-page";
@@ -18,7 +19,7 @@ const router = createBrowserRouter([
       { path: "modules/excel-to-json", element: <ExcelToJsonPage /> },
       {
         path: "modules/excel-transpose",
-        element: <ComingSoonPage moduleId="excel-transpose" />,
+        element: <ExcelTransposePage />,
       },
       {
         path: "modules/file-treeview",

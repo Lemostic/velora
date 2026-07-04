@@ -134,13 +134,13 @@ export const MODULE_REGISTRY: ModuleMeta[] = [
     id: "excel-transpose",
     name: "Excel 转置",
     category: "tools",
-    description: "行列互换 + 字段映射",
+    description: "宽表转长表 + 同 key 数值聚合",
     longDescription:
-      "把 Excel 表格行列互换，配合字段映射把横向数据转成纵向记录。常见用途：把「汇总宽表」转成「长表」喂给 BI 工具或数据库。",
-    tags: ["待实现", "宽转长"],
+      "把 Excel 表格行列互换，配合字段映射把横向数据转成纵向记录。常见用途：把「汇总宽表」转成「长表」喂给 BI 工具或数据库。\n\n支持：选 sheet、选 key 列、勾选多个 value 列做 melt、勾选「聚合求和」把同 (key, field) 行的数字相加，一键导出新的 .xlsx。",
+    tags: ["calamine", "rust_xlsxwriter", "宽转长"],
     icon: Repeat,
     path: "/modules/excel-transpose",
-    status: "planned",
+    status: "ready",
   },
   {
     id: "file-treeview",
