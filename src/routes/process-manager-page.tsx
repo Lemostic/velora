@@ -2,12 +2,15 @@ import { useEffect, useMemo, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import {
   Cpu,
+  Eye,
+  EyeOff,
   Filter,
   Loader2,
   Pause,
   Play,
   Search as SearchIcon,
   Skull,
+  X,
 } from "lucide-react";
 import {
   Card,
@@ -27,8 +30,13 @@ type ProcessInfo = {
   pid: number;
   name: string;
   exe_path: string;
+  user_id: string;
+  status: string;
   mem_bytes: number;
   cpu_pct: number;
+  start_time_ms: number;
+  disk_read_bytes: number;
+  disk_write_bytes: number;
 };
 
 type Result = {
@@ -44,7 +52,226 @@ function formatBytes(n: number): string {
   return `${(n / (1024 * 1024 * 1024)).toFixed(2)} GB`;
 }
 
-type SortKey = "pid" | "name" | "cpu" | "mem";
+function formatStartTime(ms: number, nowMs: number): string {
+  if (ms <= 0) return "—";
+  const deltaSec = Math.max(0, Math.round((nowMs - ms) / 1000));
+  if (deltaSec < 60) return `${deltaSec}s`;
+  if (deltaSec < 3600) return `${Math.round(deltaSec / 60)}m`;
+  if (deltaSec < 86400) return `${Math.round(deltaSec / 3600)}h`;
+  return `${Math.round(deltaSec / 86400)}d`;
+}
+
+// ── Column model ────────────────────────────────────────────────────
+
+type ColumnId =
+  | "pid"
+  | "name"
+  | "user"
+  | "status"
+  | "cpu"
+  | "mem"
+  | "disk_read"
+  | "disk_write"
+  | "start_time";
+
+interface ColumnDef {
+  id: ColumnId;
+  label: string;
+  /** default visibility on first load */
+  defaultOn: boolean;
+  /** tailwind min-width class on the th */
+  widthClass: string;
+  /** alignment */
+  align: "left" | "right";
+  /** rendering for a row */
+  render: (p: ProcessInfo, nowMs: number) => React.ReactNode;
+}
+
+const COLUMNS: ColumnDef[] = [
+  {
+    id: "pid",
+    label: "PID",
+    defaultOn: true,
+    widthClass: "w-[64px]",
+    align: "right",
+    render: (p) => (
+      <span className="font-mono text-[11.5px]">{p.pid}</span>
+    ),
+  },
+  {
+    id: "name",
+    label: "名称",
+    defaultOn: true,
+    widthClass: "w-[260px]",
+    align: "left",
+    render: (p) => (
+      <div className="flex flex-col gap-0.5">
+        <span className="font-mono text-[11.5px] text-foreground">
+          {p.name}
+        </span>
+        {p.exe_path && (
+          <span className="truncate font-mono text-[10.5px] text-foreground-subtle max-w-[320px]">
+            {p.exe_path}
+          </span>
+        )}
+      </div>
+    ),
+  },
+  {
+    id: "user",
+    label: "用户",
+    defaultOn: true,
+    widthClass: "w-[120px]",
+    align: "left",
+    render: (p) => (
+      <span className="font-mono text-[11.5px] text-foreground-muted">
+        {p.user_id || "—"}
+      </span>
+    ),
+  },
+  {
+    id: "status",
+    label: "状态",
+    defaultOn: true,
+    widthClass: "w-[100px]",
+    align: "left",
+    render: (p) => (
+      <span
+        className={cn(
+          "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 font-mono text-[10.5px]",
+          statusTone(p.status),
+        )}
+      >
+        <span
+          className={cn(
+            "h-1.5 w-1.5 rounded-full",
+            statusDot(p.status),
+          )}
+        />
+        {p.status}
+      </span>
+    ),
+  },
+  {
+    id: "cpu",
+    label: "CPU",
+    defaultOn: true,
+    widthClass: "w-[140px]",
+    align: "right",
+    render: (p) => <CpuBar value={p.cpu_pct} />,
+  },
+  {
+    id: "mem",
+    label: "内存",
+    defaultOn: true,
+    widthClass: "w-[100px]",
+    align: "right",
+    render: (p) => (
+      <span className="font-mono text-[11.5px]">{formatBytes(p.mem_bytes)}</span>
+    ),
+  },
+  {
+    id: "disk_read",
+    label: "磁盘读",
+    defaultOn: false,
+    widthClass: "w-[100px]",
+    align: "right",
+    render: (p) => (
+      <span className="font-mono text-[11.5px] text-foreground-muted">
+        {p.disk_read_bytes > 0 ? formatBytes(p.disk_read_bytes) : "—"}
+      </span>
+    ),
+  },
+  {
+    id: "disk_write",
+    label: "磁盘写",
+    defaultOn: false,
+    widthClass: "w-[100px]",
+    align: "right",
+    render: (p) => (
+      <span className="font-mono text-[11.5px] text-foreground-muted">
+        {p.disk_write_bytes > 0 ? formatBytes(p.disk_write_bytes) : "—"}
+      </span>
+    ),
+  },
+  {
+    id: "start_time",
+    label: "启动时长",
+    defaultOn: false,
+    widthClass: "w-[96px]",
+    align: "right",
+    render: (p, now) => (
+      <span className="font-mono text-[11.5px] text-foreground-muted">
+        {formatStartTime(p.start_time_ms, now)}
+      </span>
+    ),
+  },
+];
+
+const DEFAULT_VISIBLE: ColumnId[] = COLUMNS.filter((c) => c.defaultOn).map(
+  (c) => c.id,
+);
+
+const STORAGE_KEY = "velora.process-manager.visible-columns.v1";
+
+function loadVisible(): Set<ColumnId> {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return new Set(DEFAULT_VISIBLE);
+    const arr = JSON.parse(raw);
+    if (Array.isArray(arr)) return new Set(arr as ColumnId[]);
+  } catch {
+    // ignore
+  }
+  return new Set(DEFAULT_VISIBLE);
+}
+
+function saveVisible(set: Set<ColumnId>) {
+  try {
+    localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify(Array.from(set)),
+    );
+  } catch {
+    // ignore
+  }
+}
+
+function statusTone(status: string): string {
+  switch (status) {
+    case "Running":
+      return "border-accent-emerald/30 bg-accent-emerald/[0.08] text-accent-emerald";
+    case "Sleeping":
+      return "border-border bg-background-overlay/40 text-foreground-muted";
+    case "Stopped":
+    case "Traced":
+      return "border-accent-amber/30 bg-accent-amber/[0.08] text-accent-amber";
+    case "Zombie":
+    case "Dead":
+      return "border-accent-rose/30 bg-accent-rose/[0.08] text-accent-rose";
+    default:
+      return "border-border bg-background-overlay/40 text-foreground-subtle";
+  }
+}
+
+function statusDot(status: string): string {
+  switch (status) {
+    case "Running":
+      return "bg-accent-emerald";
+    case "Sleeping":
+      return "bg-foreground-subtle";
+    case "Stopped":
+    case "Traced":
+      return "bg-accent-amber";
+    case "Zombie":
+    case "Dead":
+      return "bg-accent-rose";
+    default:
+      return "bg-foreground-subtle";
+  }
+}
+
+type SortKey = ColumnId;
 
 export function ProcessManagerPage() {
   const contentPadding = useAppStore((s) => s.contentPadding);
@@ -56,6 +283,12 @@ export function ProcessManagerPage() {
   const [sortKey, setSortKey] = useState<SortKey>("pid");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
   const [confirmPid, setConfirmPid] = useState<number | null>(null);
+  const [visible, setVisible] = useState<Set<ColumnId>>(() => loadVisible());
+  const [colPickerOpen, setColPickerOpen] = useState(false);
+
+  useEffect(() => {
+    saveVisible(visible);
+  }, [visible]);
 
   async function refresh() {
     setLoading(true);
@@ -77,7 +310,6 @@ export function ProcessManagerPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // 自动刷新轮询
   useEffect(() => {
     if (!auto) return;
     const t = setInterval(refresh, 2000);
@@ -88,16 +320,14 @@ export function ProcessManagerPage() {
   const rows = useMemo(() => {
     if (!data) return [];
     const r = [...data.processes];
-    r.sort((a, b) => {
-      let d = 0;
-      if (sortKey === "pid") d = a.pid - b.pid;
-      else if (sortKey === "name") d = a.name.localeCompare(b.name);
-      else if (sortKey === "cpu") d = a.cpu_pct - b.cpu_pct;
-      else if (sortKey === "mem") d = a.mem_bytes - b.mem_bytes;
-      return sortDir === "asc" ? d : -d;
-    });
+    r.sort((a, b) => compareRow(a, b, sortKey, sortDir));
     return r;
   }, [data, sortKey, sortDir]);
+
+  const activeCols = useMemo(
+    () => COLUMNS.filter((c) => visible.has(c.id)),
+    [visible],
+  );
 
   async function kill(pid: number) {
     if (!data) return;
@@ -117,31 +347,17 @@ export function ProcessManagerPage() {
     }
   }
 
-  function sortHeader(k: SortKey, label: string) {
-    return (
-      <button
-        type="button"
-        onClick={() => {
-          if (sortKey === k) {
-            setSortDir((d) => (d === "asc" ? "desc" : "asc"));
-          } else {
-            setSortKey(k);
-            setSortDir("desc");
-          }
-        }}
-        className={cn(
-          "inline-flex items-center gap-1 font-mono text-[11px] uppercase tracking-[0.06em] transition-colors",
-          sortKey === k ? "text-primary" : "text-foreground-muted hover:text-foreground",
-        )}
-      >
-        {label}
-        {sortKey === k && (
-          <span className="font-mono text-[10px]">
-            {sortDir === "asc" ? "↑" : "↓"}
-          </span>
-        )}
-      </button>
-    );
+  function toggleCol(id: ColumnId) {
+    setVisible((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function resetCols() {
+    setVisible(new Set(DEFAULT_VISIBLE));
   }
 
   return (
@@ -213,33 +429,53 @@ export function ProcessManagerPage() {
 
         <Card>
           <CardHeader>
-            <div className="flex items-center justify-between">
+            <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
                 <CardTitle>进程列表</CardTitle>
                 <CardDescription>
                   {data ? `当前 ${rows.length} 行` : "未拉取"}
                 </CardDescription>
               </div>
-              {data && (
-                <Badge variant="outline" className="font-mono">
-                  <Cpu className="mr-1 h-3 w-3" />
-                  CPU avg {avgCpu(rows).toFixed(1)}%
-                </Badge>
-              )}
+              <div className="flex items-center gap-2">
+                {data && (
+                  <Badge variant="outline" className="font-mono">
+                    <Cpu className="mr-1 h-3 w-3" />
+                    CPU avg {avgCpu(rows).toFixed(1)}%
+                  </Badge>
+                )}
+                <ColumnPicker
+                  open={colPickerOpen}
+                  setOpen={setColPickerOpen}
+                  visible={visible}
+                  onToggle={toggleCol}
+                  onReset={resetCols}
+                />
+              </div>
             </div>
           </CardHeader>
-          <CardContent>
+          <CardContent className="p-0">
             {data ? (
               <ProcessTable
                 rows={rows}
-                sortHeader={sortHeader}
-                onConfirm={setConfirmPid}
+                columns={activeCols}
+                sortKey={sortKey}
+                sortDir={sortDir}
+                onSort={(k) => {
+                  if (sortKey === k) {
+                    setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+                  } else {
+                    setSortKey(k);
+                    setSortDir(k === "name" || k === "user" ? "asc" : "desc");
+                  }
+                }}
+                nowMs={data.captured_at_ms}
                 confirmingPid={confirmPid}
+                onConfirm={setConfirmPid}
                 onKill={kill}
                 onCancel={() => setConfirmPid(null)}
               />
             ) : (
-              <div className="flex min-h-[280px] flex-col items-center justify-center gap-3 text-foreground-muted">
+              <div className="flex min-h-[280px] flex-col items-center justify-center gap-3 px-6 py-12 text-foreground-muted">
                 <span className="grid h-12 w-12 place-items-center rounded-full border border-dashed border-border/80">
                   <Cpu className="h-5 w-5 opacity-60" />
                 </span>
@@ -253,44 +489,205 @@ export function ProcessManagerPage() {
   );
 }
 
+// ── Compare / Aggregate helpers ────────────────────────────────────
+
+function compareRow(
+  a: ProcessInfo,
+  b: ProcessInfo,
+  key: SortKey,
+  dir: "asc" | "desc",
+): number {
+  let d = 0;
+  switch (key) {
+    case "pid":
+      d = a.pid - b.pid;
+      break;
+    case "name":
+      d = a.name.localeCompare(b.name);
+      break;
+    case "user":
+      d = a.user_id.localeCompare(b.user_id);
+      break;
+    case "status":
+      d = a.status.localeCompare(b.status);
+      break;
+    case "cpu":
+      d = a.cpu_pct - b.cpu_pct;
+      break;
+    case "mem":
+      d = a.mem_bytes - b.mem_bytes;
+      break;
+    case "disk_read":
+      d = a.disk_read_bytes - b.disk_read_bytes;
+      break;
+    case "disk_write":
+      d = a.disk_write_bytes - b.disk_write_bytes;
+      break;
+    case "start_time":
+      d = a.start_time_ms - b.start_time_ms;
+      break;
+  }
+  return dir === "asc" ? d : -d;
+}
+
 function avgCpu(rows: ProcessInfo[]): number {
   if (rows.length === 0) return 0;
   return rows.reduce((a, r) => a + r.cpu_pct, 0) / rows.length;
 }
 
+// ── Column picker popover ──────────────────────────────────────────
+
+function ColumnPicker({
+  open,
+  setOpen,
+  visible,
+  onToggle,
+  onReset,
+}: {
+  open: boolean;
+  setOpen: (o: boolean) => void;
+  visible: Set<ColumnId>;
+  onToggle: (id: ColumnId) => void;
+  onReset: () => void;
+}) {
+  return (
+    <div className="relative">
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={() => setOpen(!open)}
+        className="h-7 gap-1.5 px-2.5 font-mono text-[11.5px]"
+      >
+        {open ? (
+          <EyeOff className="h-3 w-3" strokeWidth={1.75} />
+        ) : (
+          <Eye className="h-3 w-3" strokeWidth={1.75} />
+        )}
+        列 · {visible.size}/{COLUMNS.length}
+      </Button>
+      {open && (
+        <div className="absolute right-0 top-full z-20 mt-1 w-56 overflow-hidden rounded-md border border-border bg-background-overlay shadow-diffusion glass-edge">
+          <div className="flex items-center justify-between border-b border-border/60 px-3 py-2">
+            <span className="font-mono text-[10.5px] uppercase tracking-[0.06em] text-foreground-muted">
+              显示列
+            </span>
+            <button
+              type="button"
+              onClick={onReset}
+              className="font-mono text-[10.5px] text-primary hover:underline"
+            >
+              重置默认
+            </button>
+          </div>
+          <ul className="max-h-72 overflow-y-auto py-1">
+            {COLUMNS.map((c) => {
+              const on = visible.has(c.id);
+              return (
+                <li key={c.id}>
+                  <button
+                    type="button"
+                    onClick={() => onToggle(c.id)}
+                    className={cn(
+                      "flex w-full items-center gap-2 px-3 py-1.5 text-left text-[12px] transition-colors hover:bg-accent/40",
+                      on && "text-foreground",
+                    )}
+                  >
+                    <span
+                      className={cn(
+                        "grid h-3.5 w-3.5 place-items-center rounded-sm border transition-colors",
+                        on
+                          ? "border-primary bg-primary text-primary-foreground"
+                          : "border-border bg-background",
+                      )}
+                      aria-pressed={on}
+                    >
+                      {on && (
+                        <svg
+                          viewBox="0 0 12 12"
+                          className="h-2.5 w-2.5"
+                          aria-hidden
+                        >
+                          <path
+                            d="M2 6l3 3 5-7"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            fill="none"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          />
+                        </svg>
+                      )}
+                    </span>
+                    <span className="font-mono text-[11.5px]">{c.label}</span>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Process table ──────────────────────────────────────────────────
+
 function ProcessTable({
   rows,
-  sortHeader,
-  onConfirm,
+  columns,
+  sortKey,
+  sortDir,
+  onSort,
+  nowMs,
   confirmingPid,
+  onConfirm,
   onKill,
   onCancel,
 }: {
   rows: ProcessInfo[];
-  sortHeader: (k: SortKey, label: string) => React.ReactNode;
-  onConfirm: (pid: number) => void;
+  columns: ColumnDef[];
+  sortKey: SortKey;
+  sortDir: "asc" | "desc";
+  onSort: (k: SortKey) => void;
+  nowMs: number;
   confirmingPid: number | null;
+  onConfirm: (pid: number) => void;
   onKill: (pid: number) => void;
   onCancel: () => void;
 }) {
   return (
     <div className="overflow-x-auto">
-      <table className="w-full border-collapse text-[12px]">
+      <table className="w-full min-w-[720px] border-collapse text-[12px]">
         <thead>
           <tr>
-            <th className="border-b border-border/60 px-3 py-2 text-left">
-              {sortHeader("pid", "PID")}
-            </th>
-            <th className="border-b border-border/60 px-3 py-2 text-left">
-              {sortHeader("name", "名称")}
-            </th>
-            <th className="border-b border-border/60 px-3 py-2 text-left">
-              {sortHeader("cpu", "CPU%")}
-            </th>
-            <th className="border-b border-border/60 px-3 py-2 text-left">
-              {sortHeader("mem", "内存")}
-            </th>
-            <th className="border-b border-border/60 px-3 py-2 text-right">
+            {columns.map((c) => (
+              <th
+                key={c.id}
+                className={cn(
+                  "border-b border-border/60 px-3 py-2",
+                  c.align === "right" ? "text-right" : "text-left",
+                )}
+              >
+                <button
+                  type="button"
+                  onClick={() => onSort(c.id)}
+                  className={cn(
+                    "inline-flex items-center gap-1 font-mono text-[11px] uppercase tracking-[0.06em] transition-colors",
+                    sortKey === c.id
+                      ? "text-primary"
+                      : "text-foreground-muted hover:text-foreground",
+                  )}
+                >
+                  {c.label}
+                  {sortKey === c.id && (
+                    <span className="font-mono text-[10px]">
+                      {sortDir === "asc" ? "↑" : "↓"}
+                    </span>
+                  )}
+                </button>
+              </th>
+            ))}
+            <th className="border-b border-border/60 px-3 py-2 text-right font-mono text-[11px] uppercase tracking-[0.06em] text-foreground-muted">
               操作
             </th>
           </tr>
@@ -303,27 +700,17 @@ function ProcessTable({
                 key={p.pid}
                 className="transition-colors hover:bg-accent/30"
               >
-                <td className="border-b border-border/30 px-3 py-1.5 align-top font-mono text-[11.5px]">
-                  {p.pid}
-                </td>
-                <td className="border-b border-border/30 px-3 py-1.5 align-top">
-                  <div className="flex flex-col gap-0.5">
-                    <span className="font-mono text-[11.5px] text-foreground">
-                      {p.name}
-                    </span>
-                    {p.exe_path && (
-                      <span className="truncate font-mono text-[10.5px] text-foreground-subtle max-w-[420px]">
-                        {p.exe_path}
-                      </span>
+                {columns.map((c) => (
+                  <td
+                    key={c.id}
+                    className={cn(
+                      "border-b border-border/30 px-3 py-1.5 align-top",
+                      c.align === "right" ? "text-right" : "text-left",
                     )}
-                  </div>
-                </td>
-                <td className="border-b border-border/30 px-3 py-1.5 align-top font-mono text-[11.5px]">
-                  <CpuBar value={p.cpu_pct} />
-                </td>
-                <td className="border-b border-border/30 px-3 py-1.5 align-top font-mono text-[11.5px]">
-                  {formatBytes(p.mem_bytes)}
-                </td>
+                  >
+                    {c.render(p, nowMs)}
+                  </td>
+                ))}
                 <td className="border-b border-border/30 px-3 py-1.5 align-top text-right">
                   {isConfirming ? (
                     <span className="inline-flex items-center gap-1">
@@ -372,16 +759,19 @@ function ProcessTable({
 }
 
 function CpuBar({ value }: { value: number }) {
-  // 限到 0..100，视觉上是 fill 比例
   const pct = Math.max(0, Math.min(100, value));
   const w = `${pct}%`;
   const tint =
     pct > 50 ? "bg-accent-rose" : pct > 20 ? "bg-accent-amber" : "bg-primary/60";
   return (
     <div className="flex items-center gap-2">
-      <div className="relative h-1.5 w-20 overflow-hidden rounded-full bg-border/50">
+      <div className="relative h-1.5 w-16 overflow-hidden rounded-full bg-border/50">
         <div
-          className={cn("absolute inset-y-0 left-0", tint, "transition-[width] duration-300")}
+          className={cn(
+            "absolute inset-y-0 left-0",
+            tint,
+            "transition-[width] duration-300",
+          )}
           style={{ width: w }}
         />
       </div>
@@ -392,5 +782,5 @@ function CpuBar({ value }: { value: number }) {
   );
 }
 
-// suppress unused import warning if user omits
 void SearchIcon;
+void X;

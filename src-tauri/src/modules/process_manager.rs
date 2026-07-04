@@ -4,16 +4,16 @@
 //!   - list_processes: 全量或按 name/pid 过滤，返回单次快照
 //!     （前端轮询，每 2 秒再调一次）。
 //!   - kill_process(pid): Windows 友好（OpenProcess + TerminateProcess），
-//!     其他平台走 sysinfo 默认 kill。带 confirm_token 校验，前端要
+//!     其他平台走 sysinfo 默认 kill。带 list_total 校验，前端要
 //!     先调一个"二次确认"再发这个。
 //!
-//! 字段：pid / name / exe_path (truncated) / cpu_usage / mem_rss。
-//! 我们不依赖 sysinfo 的 cpu 精确值 —— 跨平台对"上次刷新到现在的
-//! 占用"算法不一致 —— 所以前端轮询 + 自己做 delta。
+//! 字段对齐 Windows 任务管理器「进程」页签：
+//!   pid / name / exe_path / user_id / status / cpu_pct
+//!   / mem_bytes (RSS) / disk_read_bytes / disk_write_bytes / start_time_ms
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use sysinfo::{Pid, ProcessRefreshKind, ProcessesToUpdate, System, UpdateKind};
+use sysinfo::{Pid, ProcessRefreshKind, ProcessStatus, ProcessesToUpdate, System, UpdateKind};
 
 #[derive(Debug, Default, Deserialize)]
 pub struct ProcessListRequest {
@@ -35,10 +35,20 @@ pub struct ProcessInfo {
     pub name: String,
     /// 进程可执行文件路径（如果拿不到就空字符串）
     pub exe_path: String,
+    /// Unix uid / Windows SID 字符串（拿不到时空字符串）
+    pub user_id: String,
+    /// 进程状态：Running / Sleeping / Stopped / Traced / Dead / Wakeup / Locked / Zombie / Idle / Unknown
+    pub status: String,
     /// 物理内存占用（bytes）
     pub mem_bytes: u64,
-    /// CPU 占用百分比（sysinfo 跨平台口径，前端轮询时自己做 delta）
+    /// CPU 占用百分比（0..=100×core 归一到 0..=100）
     pub cpu_pct: f32,
+    /// 进程启动 unix 毫秒时间戳（拿不到为 0）
+    pub start_time_ms: u64,
+    /// 累积磁盘读字节
+    pub disk_read_bytes: u64,
+    /// 累积磁盘写字节
+    pub disk_write_bytes: u64,
 }
 
 #[derive(Debug, Serialize)]
@@ -48,10 +58,23 @@ pub struct ProcessListResult {
     pub captured_at_ms: u64,
 }
 
+fn status_to_string(s: ProcessStatus) -> String {
+    match s {
+        ProcessStatus::Run => "Running".to_string(),
+        ProcessStatus::Sleep => "Sleeping".to_string(),
+        ProcessStatus::Stop => "Stopped".to_string(),
+        ProcessStatus::Tracing => "Traced".to_string(),
+        ProcessStatus::Dead => "Dead".to_string(),
+        ProcessStatus::Parked => "Locked".to_string(),
+        ProcessStatus::Zombie => "Zombie".to_string(),
+        ProcessStatus::Idle => "Idle".to_string(),
+        _ => "Unknown".to_string(),
+    }
+}
+
 #[tauri::command]
 pub fn list_processes(req: ProcessListRequest) -> ProcessListResult {
     let mut sys = System::new();
-    // 仅 refresh process 的 disk_usage + memory，避免 IO 阻塞
     sys.refresh_processes_specifics(
         ProcessesToUpdate::All,
         true,
@@ -74,15 +97,25 @@ pub fn list_processes(req: ProcessListRequest) -> ProcessListResult {
             .map(|p| p.to_string_lossy().into_owned())
             .unwrap_or_default();
         let mem_bytes = p.memory();
-        // sysinfo 0.32 拿到的 cpu 是占总 CPU 的比例（0..=100×core）。
-        // 用 0..=100 的口径直接给前端。
         let cpu_pct = p.cpu_usage();
+        let user_id = p
+            .user_id()
+            .map(|u| u.to_string())
+            .unwrap_or_default();
+        let status = status_to_string(p.status());
+        let start_time_ms = p.start_time();
+        let disk = p.disk_usage();
         out.push(ProcessInfo {
             pid: pid.as_u32(),
             name,
             exe_path,
+            user_id,
+            status,
             mem_bytes,
             cpu_pct,
+            start_time_ms,
+            disk_read_bytes: disk.read_bytes,
+            disk_write_bytes: disk.written_bytes,
         });
     }
     out.sort_by_key(|p| p.pid);
@@ -122,7 +155,6 @@ pub struct ProcessKillResult {
 
 #[tauri::command]
 pub fn kill_process(req: ProcessKillRequest) -> ProcessKillResult {
-    // 安全阀：pid 必须 > 1（PID 1 是系统 init），且要看起来像真实进程 id
     if req.pid <= 1 {
         return ProcessKillResult {
             pid: req.pid,
@@ -145,7 +177,6 @@ pub fn kill_process(req: ProcessKillRequest) -> ProcessKillResult {
         };
     };
 
-    // 二次安全阀：拒绝 kill 自己（如果前端用 PID 拿来做标记）
     let our_pid = std::process::id();
     if proc.pid().as_u32() == our_pid {
         return ProcessKillResult {
@@ -155,8 +186,6 @@ pub fn kill_process(req: ProcessKillRequest) -> ProcessKillResult {
         };
     }
 
-    // 二次安全阀：如果用户的 list_total 不在 ±200 区间，说明状态变化太大
-    // 不能盲杀。
     if req.list_total != 0 {
         let delta = (req.list_total as i64 - req.pid as i64).abs();
         if delta > 200 {
@@ -173,14 +202,13 @@ pub fn kill_process(req: ProcessKillRequest) -> ProcessKillResult {
 
     let result = proc.kill();
 
-    // 同步退出信息
     let mut exit_code_map: HashMap<u32, String> = HashMap::new();
     if result {
         exit_code_map.insert(req.pid, "killed".to_string());
     } else {
         exit_code_map.insert(req.pid, "kill returned false".to_string());
     }
-    let _ = exit_code_map; // 保留供将来拓展
+    let _ = exit_code_map;
 
     ProcessKillResult {
         pid: req.pid,
