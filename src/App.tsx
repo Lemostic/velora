@@ -4,6 +4,10 @@ import { HomePage } from "@/routes/home-page";
 import { QRCodePage } from "@/routes/qrcode-page";
 import { ExcelToJsonPage } from "@/routes/excel-to-json-page";
 import { ExcelTransposePage } from "@/routes/excel-transpose-page";
+import { FileTreePage } from "@/routes/file-treeview-page";
+import { ZipCleanPage } from "@/routes/zip-clean-page";
+import { XmlJsonPage } from "@/routes/xml-json-page";
+import { MarkitdownPage } from "@/routes/markitdown-page";
 import { ComingSoonPage } from "@/routes/coming-soon-page";
 import { PreferencesPage } from "@/routes/preferences-page";
 import { NotFoundPage } from "@/routes/not-found-page";
@@ -23,19 +27,19 @@ const router = createBrowserRouter([
       },
       {
         path: "modules/file-treeview",
-        element: <ComingSoonPage moduleId="file-treeview" />,
+        element: <FileTreePage />,
       },
       {
         path: "modules/zip-clean",
-        element: <ComingSoonPage moduleId="zip-clean" />,
+        element: <ZipCleanPage />,
       },
       {
         path: "modules/xml-json",
-        element: <ComingSoonPage moduleId="xml-json" />,
+        element: <XmlJsonPage />,
       },
       {
         path: "modules/markitdown",
-        element: <ComingSoonPage moduleId="markitdown" />,
+        element: <MarkitdownPage />,
       },
       {
         path: "modules/process-manager",

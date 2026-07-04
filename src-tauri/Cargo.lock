@@ -2853,6 +2853,16 @@ dependencies = [
 
 [[package]]
 name = "quick-xml"
+version = "0.36.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f7649a7b4df05aed9ea7ec6f628c67c9953a43869b8bc50929569b2999d443fe"
+dependencies = [
+ "memchr",
+ "serde",
+]
+
+[[package]]
+name = "quick-xml"
 version = "0.39.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cdcc8dd4e2f670d309a5f0e83fe36dfdc05af317008fea29144da1a2ac858e5e"
@@ -4773,9 +4783,11 @@ dependencies = [
  "calamine",
  "image",
  "qrcode",
+ "quick-xml 0.36.2",
  "rust_xlsxwriter",
  "serde",
  "serde_json",
+ "sha2",
  "tauri",
  "tauri-build",
  "tauri-plugin-dialog",
@@ -4791,6 +4803,8 @@ dependencies = [
  "velora-core",
  "velora-infra",
  "velora-modules",
+ "walkdir",
+ "zip 2.4.2",
 ]
 
 [[package]]

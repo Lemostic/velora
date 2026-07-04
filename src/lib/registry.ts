@@ -148,11 +148,11 @@ export const MODULE_REGISTRY: ModuleMeta[] = [
     category: "files",
     description: "浏览本地目录结构，支持搜索和大文件过滤",
     longDescription:
-      "高性能浏览本地目录，Rust 端用 `walkdir` 异步扫描，前端用虚拟列表渲染百万级条目不卡顿。\n\n支持按大小/时间过滤、glob 搜索、忽略规则（.gitignore 语法）。",
-    tags: ["待实现", "虚拟列表", "walkdir"],
+      "高性能浏览本地目录，Rust 端用 `walkdir` 异步扫描，前端渲染懒加载树。\n\n支持最大深度限制、glob 风格的忽略规则（`node_modules`、`.git`、`*.tmp` 等），单次扫描上限 50 000 节点防止 OOM。",
+    tags: ["walkdir", "懒加载", "glob 忽略"],
     icon: FolderTree,
     path: "/modules/file-treeview",
-    status: "planned",
+    status: "ready",
   },
   {
     id: "zip-clean",
@@ -160,11 +160,11 @@ export const MODULE_REGISTRY: ModuleMeta[] = [
     category: "files",
     description: "扫描并清理重复/空 zip 压缩包",
     longDescription:
-      "扫描指定目录下的所有 .zip，找出：① 完全重复（CRC + 大小相同） ② 体积为 0 或内容为空的压缩包 ③ 同名重复版本（v1.zip / v1 (1).zip 这种）。一键归档到 `_velora_zip_trash/` 目录，不直接删，可回滚。",
-    tags: ["待实现", "去重", "安全清理"],
+      "扫描指定目录下的所有 .zip，找出：① 完全重复（CRC + 内容哈希相同） ② 体积为 0 或内容为空的压缩包 ③ 损坏的 zip。一键归档到 `_velora_zip_trash/<timestamp>/` 目录，不直接删，可回滚。",
+    tags: ["sha256", "deflate", "安全清理"],
     icon: FileArchive,
     path: "/modules/zip-clean",
-    status: "planned",
+    status: "ready",
   },
   {
     id: "xml-json",
@@ -172,11 +172,11 @@ export const MODULE_REGISTRY: ModuleMeta[] = [
     category: "convert",
     description: "XML 与 JSON 双向互转",
     longDescription:
-      "XML 与 JSON 双向互转，支持自定义根节点、属性处理策略（转字段或保留前缀）、CDATA、命名空间。适合 SOAP 接口对接、配置文件互转。",
-    tags: ["待实现", "SOAP", "命名空间"],
+      "XML 与 JSON 双向互转，支持自定义根节点、属性处理策略（转字段或保留前缀）、同名子元素聚合为数组。SOAP / 配置文件互转的常用工具。",
+    tags: ["quick-xml", "serde_json", "双向"],
     icon: ArrowLeftRight,
     path: "/modules/xml-json",
-    status: "planned",
+    status: "ready",
   },
   {
     id: "markitdown",
@@ -185,10 +185,10 @@ export const MODULE_REGISTRY: ModuleMeta[] = [
     description: "把 PDF / Word / Excel 转成 Markdown",
     longDescription:
       "调外部 `markitdown` CLI（sidecar 模式），把 PDF / Word / Excel / PPT / 图片 OCR 转成结构化 Markdown。适合把「客户发来的文档」塞进 LLM 的上下文。",
-    tags: ["待实现", "sidecar", "LLM 友好"],
+    tags: ["sidecar", "CLI", "LLM 友好"],
     icon: FileText,
     path: "/modules/markitdown",
-    status: "planned",
+    status: "ready",
   },
   {
     id: "process-manager",

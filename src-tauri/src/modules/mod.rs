@@ -2,5 +2,9 @@
 
 pub mod excel;
 pub mod excel_transpose;
+pub mod file_treeview;
+pub mod markitdown;
 pub mod qrcode;
 pub mod registry;
+pub mod xml_json;
+pub mod zip_clean;
