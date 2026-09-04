@@ -182,6 +182,7 @@ function BentoGrid() {
   // Span values are based on a 6-col / auto-row grid.
   const layout: Record<string, BentoSpan> = {
     "excel-schedule": { col: "col-span-2", row: "row-span-2", size: "lg" },
+    "weekly-report": { col: "col-span-2", row: "row-span-1", size: "md" },
     "excel-to-json": { col: "col-span-2", row: "row-span-1", size: "md" },
     "qrcode": { col: "col-span-2", row: "row-span-1", size: "md" },
     "file-treeview": { col: "col-span-1", row: "row-span-1", size: "sm" },

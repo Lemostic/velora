@@ -7,6 +7,7 @@ import {
   ArrowLeftRight,
   Binary,
   Braces,
+  ClipboardList,
   Clock,
   Cpu,
   Diff,
@@ -47,6 +48,7 @@ export type ModuleId =
   | "process-manager"
   | "es-query"
   | "excel-schedule"
+  | "weekly-report"
   | "preferences"
   | "json-formatter"
   | "regex-tester"
@@ -102,6 +104,7 @@ const ICON_MAP: Record<string, LucideIcon> = {
   Diff,
   Palette,
   Clock,
+  ClipboardList,
 };
 
 export const MODULE_REGISTRY: ModuleMeta[] = [
@@ -224,6 +227,18 @@ export const MODULE_REGISTRY: ModuleMeta[] = [
     tags: ["calamine", "chrono", "rust_xlsxwriter"],
     icon: GanttChartSquare,
     path: "/modules/excel-schedule",
+    status: "ready",
+  },
+  {
+    id: "weekly-report",
+    name: "周报管理",
+    category: "productivity",
+    description: "按条目创建周报，同任务项合并后导出 Excel",
+    longDescription:
+      "把本周完成情况按「工作类别 / 工作任务项 / 计划任务内容 / 进度 / 投入 / 成本归属 / 负责人 / 输出工件 / 投入人员」逐条录入，数据本地持久化。\n\n同一工作任务项的 计划任务内容、进度说明、输出工件、投入人员 会自动合并成一个单元格；每一项任务可录入多名投入人员（人天）。\n\n导出时用 rust_xlsxwriter 按模板样式生成 .xlsx：包含投入情况、本周主要产出、本周完成情况表和下周工作计划表。",
+    tags: ["rust_xlsxwriter", "合并单元格", "本地持久化"],
+    icon: ClipboardList,
+    path: "/modules/weekly-report",
     status: "ready",
   },
   {

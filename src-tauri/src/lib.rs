@@ -18,6 +18,7 @@ use modules::{
     process_manager::{kill_process, list_processes},
     qrcode::qrcode_encode,
     registry::ModuleRegistry,
+    weekly_report::weekly_report_export,
     xml_json::{json_to_xml, xml_to_json},
     zip_clean::scan_zip_dir,
 };
@@ -146,7 +147,8 @@ pub fn run() {
             es_query,
             es_list_indices,
             excel_schedule_parse,
-            excel_schedule_export
+            excel_schedule_export,
+            weekly_report_export
         ])
         .run(tauri::generate_context!())
         .expect("error while running Velora");

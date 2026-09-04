@@ -9,5 +9,6 @@ pub mod markitdown;
 pub mod process_manager;
 pub mod qrcode;
 pub mod registry;
+pub mod weekly_report;
 pub mod xml_json;
 pub mod zip_clean;

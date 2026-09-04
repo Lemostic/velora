@@ -9,6 +9,7 @@ import { ZipCleanPage } from "@/routes/zip-clean-page";
 import { XmlJsonPage } from "@/routes/xml-json-page";
 import { MarkitdownPage } from "@/routes/markitdown-page";
 import { ExcelSchedulePage } from "@/routes/excel-schedule-page";
+import { WeeklyReportPage } from "@/routes/weekly-report-page";
 import { ProcessManagerPage } from "@/routes/process-manager-page";
 import { EsQueryPage } from "@/routes/es-query-page";
 import { PreferencesPage } from "@/routes/preferences-page";
@@ -54,6 +55,10 @@ const router = createBrowserRouter([
       {
         path: "modules/excel-schedule",
         element: <ExcelSchedulePage />,
+      },
+      {
+        path: "modules/weekly-report",
+        element: <WeeklyReportPage />,
       },
       { path: "modules/preferences", element: <PreferencesPage /> },
       { path: "*", element: <NotFoundPage /> },

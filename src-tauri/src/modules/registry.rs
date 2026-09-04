@@ -91,6 +91,12 @@ impl BuiltinModules {
                 category: "productivity",
                 description: "Excel 排期 + 甘特图 + 多维度过滤 + Owner 统计",
             },
+            ModuleMeta {
+                id: "weekly-report",
+                name: "周报管理",
+                category: "productivity",
+                description: "按条目创建周报，同任务项合并后导出 Excel",
+            },
             // ===== 系统 =====
             ModuleMeta {
                 id: "preferences",

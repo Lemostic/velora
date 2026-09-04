@@ -1,6 +1,7 @@
 import { NavLink } from "react-router-dom";
 import { motion } from "framer-motion";
 import {
+  ClipboardList,
   Cpu,
   FileArchive,
   FileSpreadsheet,
@@ -40,6 +41,7 @@ const TOOL_NAV: NavItem[] = [
   { to: "/modules/excel-to-json", label: "Excel → JSON", icon: FileSpreadsheet },
   { to: "/modules/excel-transpose", label: "Excel 转置", icon: Repeat },
   { to: "/modules/excel-schedule", label: "研发计划排期", icon: GanttChartSquare },
+  { to: "/modules/weekly-report", label: "周报管理", icon: ClipboardList },
 ];
 
 const FILE_NAV: NavItem[] = [
