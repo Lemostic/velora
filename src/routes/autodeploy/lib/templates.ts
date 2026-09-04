@@ -1,6 +1,7 @@
 // 内置工作流模板
 //
-// 提供两个常见发布场景作为起始模板，用户加载后可以微调。
+// 提供三个常见发布场景作为起始模板，用户加载后可以微调。
+// 第三个模板演示了"成功 / 失败分支"（if_status）和"重试"节点。
 
 import type { Workflow, WorkflowTemplate } from "../types";
 
@@ -38,6 +39,26 @@ const FRONTEND_PUBLISH: Workflow = {
       },
       status: "idle",
     },
+    {
+      id: "n_notify_ok",
+      type: "notify",
+      x: 980,
+      y: 30,
+      params: {
+        title: "前端发布成功",
+        body: "dist 已上传到 /var/www/app",
+        level: "success",
+      },
+      status: "idle",
+    },
+    {
+      id: "n_end",
+      type: "end",
+      x: 1280,
+      y: 80,
+      params: {},
+      status: "idle",
+    },
   ],
   connections: [
     { id: "c1", fromNode: "n_src", fromPort: 0, toNode: "n_zip", toPort: 0 },
@@ -46,6 +67,20 @@ const FRONTEND_PUBLISH: Workflow = {
       fromNode: "n_zip",
       fromPort: 0,
       toNode: "n_upload",
+      toPort: 0,
+    },
+    {
+      id: "c3",
+      fromNode: "n_upload",
+      fromPort: 0,
+      toNode: "n_notify_ok",
+      toPort: 0,
+    },
+    {
+      id: "c4",
+      fromNode: "n_upload",
+      fromPort: 0,
+      toNode: "n_end",
       toPort: 0,
     },
   ],
@@ -106,6 +141,46 @@ const BACKEND_WAR_PUBLISH: Workflow = {
       },
       status: "idle",
     },
+    {
+      id: "n_branch",
+      type: "if_status",
+      x: 1280,
+      y: 80,
+      params: {},
+      status: "idle",
+    },
+    {
+      id: "n_notify_ok",
+      type: "notify",
+      x: 1580,
+      y: 30,
+      params: {
+        title: "后端 War 发布成功",
+        body: "war 已发布到生产环境",
+        level: "success",
+      },
+      status: "idle",
+    },
+    {
+      id: "n_notify_fail",
+      type: "notify",
+      x: 1580,
+      y: 130,
+      params: {
+        title: "后端 War 发布失败",
+        body: "请检查 SFTP 连接或文件路径",
+        level: "error",
+      },
+      status: "idle",
+    },
+    {
+      id: "n_end",
+      type: "end",
+      x: 1880,
+      y: 80,
+      params: {},
+      status: "idle",
+    },
   ],
   connections: [
     {
@@ -129,6 +204,130 @@ const BACKEND_WAR_PUBLISH: Workflow = {
       toNode: "n_upload",
       toPort: 0,
     },
+    {
+      id: "c4",
+      fromNode: "n_upload",
+      fromPort: 0,
+      toNode: "n_branch",
+      toPort: 0,
+    },
+    {
+      id: "c5",
+      fromNode: "n_branch",
+      fromPort: 0,
+      toNode: "n_notify_ok",
+      toPort: 0,
+    },
+    {
+      id: "c6",
+      fromNode: "n_branch",
+      fromPort: 1,
+      toNode: "n_notify_fail",
+      toPort: 0,
+    },
+    {
+      id: "c7",
+      fromNode: "n_branch",
+      fromPort: 0,
+      toNode: "n_end",
+      toPort: 0,
+    },
+  ],
+};
+
+const ROBUST_PUBLISH: Workflow = {
+  version: 1,
+  name: "健壮发布（含重试）",
+  nodes: [
+    {
+      id: "n_src",
+      type: "local_dir",
+      x: 80,
+      y: 80,
+      params: { path: "" },
+      status: "idle",
+    },
+    {
+      id: "n_zip",
+      type: "compress",
+      x: 380,
+      y: 80,
+      params: { output: "", level: "deflate" },
+      status: "idle",
+    },
+    {
+      id: "n_retry",
+      type: "retry",
+      x: 680,
+      y: 80,
+      params: { max_retries: "3", retry_delay: "5" },
+      status: "idle",
+    },
+    {
+      id: "n_upload",
+      type: "sftp_upload",
+      x: 980,
+      y: 80,
+      params: {
+        host: "",
+        user: "",
+        auth: "key",
+        secret: "",
+        remote_path: "/var/www/app",
+      },
+      status: "idle",
+    },
+    {
+      id: "n_notify_ok",
+      type: "notify",
+      x: 1280,
+      y: 30,
+      params: {
+        title: "发布完成",
+        body: "dist 已成功发布",
+        level: "success",
+      },
+      status: "idle",
+    },
+    {
+      id: "n_end",
+      type: "end",
+      x: 1280,
+      y: 130,
+      params: {},
+      status: "idle",
+    },
+  ],
+  connections: [
+    { id: "c1", fromNode: "n_src", fromPort: 0, toNode: "n_zip", toPort: 0 },
+    {
+      id: "c2",
+      fromNode: "n_zip",
+      fromPort: 0,
+      toNode: "n_retry",
+      toPort: 0,
+    },
+    {
+      id: "c3",
+      fromNode: "n_retry",
+      fromPort: 0,
+      toNode: "n_upload",
+      toPort: 0,
+    },
+    {
+      id: "c4",
+      fromNode: "n_upload",
+      fromPort: 0,
+      toNode: "n_notify_ok",
+      toPort: 0,
+    },
+    {
+      id: "c5",
+      fromNode: "n_upload",
+      fromPort: 0,
+      toNode: "n_end",
+      toPort: 0,
+    },
   ],
 };
 
@@ -136,13 +335,20 @@ export const BUILTIN_TEMPLATES: WorkflowTemplate[] = [
   {
     id: "frontend-publish",
     name: "前端页面发布",
-    description: "本地 dist 目录 → 压缩 → SFTP 上传到服务器",
+    description: "本地 dist → 压缩 → SFTP 上传 → 成功通知 → 结束",
     workflow: FRONTEND_PUBLISH,
   },
   {
     id: "backend-war-publish",
     name: "后端 War 发布",
-    description: "本地 war → 远端备份 → 删旧版本 → 上传新版本",
+    description:
+      "war → 远端备份 → 删旧版本 → 上传 → 状态分支（成功 / 失败各发通知）",
     workflow: BACKEND_WAR_PUBLISH,
+  },
+  {
+    id: "robust-publish",
+    name: "健壮发布（含重试）",
+    description: "dist → 压缩 → 重试节点 → SFTP 上传 → 通知 / 结束",
+    workflow: ROBUST_PUBLISH,
   },
 ];

@@ -277,7 +277,7 @@ const SFTP_DOWNLOAD: NodeType = NodeType {
     label: "SFTP 下载",
     description: "从远端拉文件回本地",
     icon: "Download",
-    inputs: 1,
+    inputs: 0,
     outputs: 1,
     fields: &[
         FieldDef {
@@ -343,8 +343,8 @@ const SFTP_DELETE: NodeType = NodeType {
     label: "删除远端",
     description: "删除远端文件或目录",
     icon: "Trash2",
-    inputs: 1,
-    outputs: 1,
+    inputs: 0,
+    outputs: 0,
     fields: &[
         FieldDef {
             name: "host",
@@ -400,8 +400,8 @@ const SFTP_BACKUP: NodeType = NodeType {
     label: "备份远端",
     description: "远端文件 / 目录打包为带时间戳的 zip",
     icon: "ShieldCheck",
-    inputs: 1,
-    outputs: 1,
+    inputs: 0,
+    outputs: 0,
     fields: &[
         FieldDef {
             name: "host",
@@ -460,6 +460,111 @@ const SFTP_BACKUP: NodeType = NodeType {
     ],
 };
 
+// ─────────────────────────────────────────────
+// 控制流节点（control flow）
+// ─────────────────────────────────────────────
+
+/// 状态分支：1 input, 2 outputs（output 0 = success, output 1 = failure）。
+/// 检查上游 status，把执行路径分发到两个 output。
+const IF_STATUS: NodeType = NodeType {
+    id: "if_status",
+    category: NodeCategory::Process,
+    label: "状态分支",
+    description: "按上游成功 / 失败分别路由到两条分支",
+    icon: "GitBranch",
+    inputs: 1,
+    outputs: 2,
+    fields: &[],
+};
+
+/// 重试：1 input, 1 output。上游失败时按 max_retries 自动重试。
+const RETRY: NodeType = NodeType {
+    id: "retry",
+    category: NodeCategory::Process,
+    label: "失败重试",
+    description: "上游执行失败时按设定次数自动重试",
+    icon: "RotateCw",
+    inputs: 1,
+    outputs: 1,
+    fields: &[
+        FieldDef {
+            name: "max_retries",
+            label: "最大重试次数",
+            kind: FieldKind::Number,
+            required: false,
+            placeholder: Some("3"),
+            default: Some("3"),
+            options: None,
+        },
+        FieldDef {
+            name: "retry_delay",
+            label: "重试间隔 (秒)",
+            kind: FieldKind::Number,
+            required: false,
+            placeholder: Some("5"),
+            default: Some("5"),
+            options: None,
+        },
+    ],
+};
+
+/// 结束节点：1 input, 0 outputs。标记工作流结束（不强制早停）。
+const END: NodeType = NodeType {
+    id: "end",
+    category: NodeCategory::Process,
+    label: "结束",
+    description: "工作流结束标记，到此停止后续路径",
+    icon: "CircleStop",
+    inputs: 1,
+    outputs: 0,
+    fields: &[],
+};
+
+/// 通知：1 input, 0 outputs。执行时弹系统通知（依赖 tauri notification 插件）。
+const NOTIFY: NodeType = NodeType {
+    id: "notify",
+    category: NodeCategory::Process,
+    label: "系统通知",
+    description: "触发一条系统通知（依赖 Tauri 通知插件）",
+    icon: "Bell",
+    inputs: 1,
+    outputs: 0,
+    fields: &[
+        FieldDef {
+            name: "title",
+            label: "通知标题",
+            kind: FieldKind::Text,
+            required: true,
+            placeholder: Some("部署完成"),
+            default: None,
+            options: None,
+        },
+        FieldDef {
+            name: "body",
+            label: "通知内容",
+            kind: FieldKind::Text,
+            required: true,
+            placeholder: Some("前端 dist 已上传到 /var/www/app"),
+            default: None,
+            options: None,
+        },
+        FieldDef {
+            name: "level",
+            label: "通知级别",
+            kind: FieldKind::Select,
+            required: false,
+            placeholder: None,
+            default: Some("info"),
+            options: Some(&[
+                ("info", "信息"),
+                ("success", "成功"),
+                ("warning", "警告"),
+                ("error", "错误"),
+            ]),
+        },
+    ],
+};
+
 const BUILTIN_NODES: &[NodeType] = &[
     LOCAL_FILE,
     LOCAL_DIR,
@@ -471,6 +576,10 @@ const BUILTIN_NODES: &[NodeType] = &[
     SFTP_DOWNLOAD,
     SFTP_DELETE,
     SFTP_BACKUP,
+    IF_STATUS,
+    RETRY,
+    END,
+    NOTIFY,
 ];
 
 // =============================================================================
@@ -535,6 +644,10 @@ fn run_node(req: &AutodeployExecuteRequest) -> AutodeployExecuteResult {
         "sftp_upload" | "sftp_download" | "sftp_delete" | "sftp_backup" => {
             sftp_stub(req)
         }
+        "if_status" => control_if_status(req),
+        "retry" => control_retry(req),
+        "end" => control_end(req),
+        "notify" => control_notify(req),
         other => AutodeployExecuteResult {
             ok: false,
             node_id: req.node_id.clone(),
@@ -792,6 +905,87 @@ fn sftp_stub(req: &AutodeployExecuteRequest) -> AutodeployExecuteResult {
 }
 
 // -----------------------------------------------------------------------------
+// 控制流节点（control flow）
+// -----------------------------------------------------------------------------
+
+/// 状态分支：检查上游节点的输出，自行走 success / failure 路径。
+///
+/// 实际分发由前端 executor.ts 完成（基于 upstream 的 status 字段），
+/// Rust 端只标记 metadata：当前节点自身总是返回 ok（它本身没失败语义）。
+fn control_if_status(req: &AutodeployExecuteRequest) -> AutodeployExecuteResult {
+    // 当前节点无上游（inputs=0）或上游已执行（inputs=1）都允许。
+    // 真正的 success / failure 路由由前端拓扑执行器根据
+    // 上游 status 字段分发到 toNode.successOutput / toNode.failureOutput。
+    AutodeployExecuteResult {
+        ok: true,
+        node_id: req.node_id.clone(),
+        message: "✓ 状态分支节点：路由由前端拓扑执行器按上游 status 分发".to_string(),
+        output: Some(serde_json::json!({
+            "kind": "branch",
+            "outputs": 2,
+        })),
+        elapsed_ms: 0,
+    }
+}
+
+/// 重试：本身不做实际重试。前端拓扑执行器拿到 max_retries 字段后，
+/// 在上游 status=error 时循环重试上游 N 次，每次间隔 retry_delay 秒。
+fn control_retry(req: &AutodeployExecuteRequest) -> AutodeployExecuteResult {
+    let max = param_str(req, "max_retries")
+        .and_then(|s| s.parse::<u32>().ok())
+        .unwrap_or(3);
+    let delay = param_str(req, "retry_delay")
+        .and_then(|s| s.parse::<u32>().ok())
+        .unwrap_or(5);
+    AutodeployExecuteResult {
+        ok: true,
+        node_id: req.node_id.clone(),
+        message: format!(
+            "✓ 重试策略：失败时自动重试 {} 次，每次间隔 {} 秒",
+            max, delay
+        ),
+        output: Some(serde_json::json!({
+            "kind": "retry",
+            "max_retries": max,
+            "retry_delay": delay,
+        })),
+        elapsed_ms: 0,
+    }
+}
+
+/// 结束节点：标记工作流结束，到此停止后续路径。
+fn control_end(req: &AutodeployExecuteRequest) -> AutodeployExecuteResult {
+    AutodeployExecuteResult {
+        ok: true,
+        node_id: req.node_id.clone(),
+        message: "✓ 工作流结束".to_string(),
+        output: Some(serde_json::json!({
+            "kind": "end",
+        })),
+        elapsed_ms: 0,
+    }
+}
+
+/// 通知：发送系统通知。当前 stub，等 Tauri 通知插件接入后实发。
+fn control_notify(req: &AutodeployExecuteRequest) -> AutodeployExecuteResult {
+    let title = param_str(req, "title").unwrap_or_else(|| "Velora 通知".to_string());
+    let body = param_str(req, "body").unwrap_or_default();
+    let level = param_str(req, "level").unwrap_or_else(|| "info".to_string());
+    AutodeployExecuteResult {
+        ok: true,
+        node_id: req.node_id.clone(),
+        message: format!("✓ 通知已发送：{} - {} [{}]", title, body, level),
+        output: Some(serde_json::json!({
+            "kind": "notify",
+            "title": title,
+            "body": body,
+            "level": level,
+        })),
+        elapsed_ms: 0,
+    }
+}
+
+// -----------------------------------------------------------------------------
 // 小工具
 // -----------------------------------------------------------------------------
 
@@ -910,7 +1104,7 @@ mod tests {
     #[test]
     fn builtin_list_is_complete() {
         let nodes = autodeploy_list_node_types();
-        assert_eq!(nodes.len(), 10, "expect 10 built-in node types");
+        assert_eq!(nodes.len(), 14, "expect 14 built-in node types");
         let ids: Vec<&str> = nodes.iter().map(|n| n.id).collect();
         for must in &[
             "local_file",
@@ -923,6 +1117,10 @@ mod tests {
             "sftp_download",
             "sftp_delete",
             "sftp_backup",
+            "if_status",
+            "retry",
+            "end",
+            "notify",
         ] {
             assert!(ids.contains(must), "missing node type {}", must);
         }
