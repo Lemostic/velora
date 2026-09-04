@@ -239,14 +239,14 @@
   }
 
   button:not(:disabled),
-  [role="button"]:not(:aria-disabled="true"]),
-  a,
+  [role="button"]:not(:disabled),
+  a:not([aria-disabled="true"]),
   label[for],
   summary {
     cursor: pointer;
   }
   button:disabled,
-  [role="button"][aria-disabled="true"],
+  [role="button"]:disabled,
   a[aria-disabled="true"] {
     cursor: not-allowed;
   }
