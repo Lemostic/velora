@@ -9,6 +9,7 @@ mod modules;
 mod plugins_ext;
 
 use modules::{
+    autodeploy::{autodeploy_execute, autodeploy_list_node_types},
     es_query::{es_list_indices, es_query},
     excel::{ExcelToJsonRequest, ExcelToJsonResult},
     excel_schedule::{excel_schedule_export, excel_schedule_parse},
@@ -148,7 +149,9 @@ pub fn run() {
             es_list_indices,
             excel_schedule_parse,
             excel_schedule_export,
-            weekly_report_export
+            weekly_report_export,
+            autodeploy_list_node_types,
+            autodeploy_execute
         ])
         .run(tauri::generate_context!())
         .expect("error while running Velora");

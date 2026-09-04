@@ -97,6 +97,12 @@ impl BuiltinModules {
                 category: "productivity",
                 description: "按条目创建周报，同任务项合并后导出 Excel",
             },
+            ModuleMeta {
+                id: "autodeploy",
+                name: "自动化部署",
+                category: "devtools",
+                description: "Node-RED 风格工作流编辑器：拖拽 / 连线 / 执行部署流水线",
+            },
             // ===== 系统 =====
             ModuleMeta {
                 id: "preferences",
