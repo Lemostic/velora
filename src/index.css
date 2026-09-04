@@ -1,134 +1,163 @@
 @import "tailwindcss";
 @import "tw-animate-css";
-@import "@fontsource-variable/geist/index.css";
-@import "@fontsource-variable/geist-mono/index.css";
 
 /* ============================================================
-   Velora — High-end desktop toolkit, v2 design tokens
-   Palette: Cool neutral base (zinc-tinted), single electric blue
-            primary, three status accents (emerald / amber / rose).
-            Both light and dark variants share the same hue family
-            so the experience feels intentional, not "the dark
-            version is a degraded copy of the light one".
-   Type:    Geist Variable Sans + Geist Mono.
-   Units:   All sizes via Tailwind classes; the framework already
-            uses rem (0.25rem base) so the user gets free browser
-            font-size scaling without losing grid precision.
+   Velora — Element Plus 风格主题（v3）
+   色板：完全采用 Element Plus 官方色板
+         - 主色 #409EFF
+         - 成功 #67C23A
+         - 警告 #E6A23C
+         - 危险 #F56C6C
+         - 信息 #909399
+   圆角：全局 4px（base）/ 2px（sm）/ 8px（lg）
+   字体：-apple-system / PingFang SC / Microsoft YaHei（与 Element Plus 一致）
+   阴影：单层柔和 box-shadow（drop-style），不再用 diffusion 多层叠加
+   暗色：纯色 #141414 背景，不再叠 film grain / radial gradient
    ============================================================ */
 
 @custom-variant dark (&:is(.dark *));
 
 /* ----------------------------------------------------------------
-   Light mode — warm-tinted off-white, not a flat #ffffff
+   浅色 — Element Plus 官方色板
    ---------------------------------------------------------------- */
 :root {
-  /* Three depth layers so cards and overlays have a real sense of
-     lift without relying on shadow alone. */
-  --background:          oklch(0.985 0.004 80);  /* warm off-white */
-  --background-elevated: oklch(0.995 0.003 80);  /* card / panel */
-  --background-overlay:  oklch(1     0     0);   /* modal / popover */
-  --surface-hero:        oklch(0.99  0.005 80);  /* hero card */
+  /* 主色（含 4 档浅化 + 1 档深化，Element Plus 标准） */
+  --primary:                 #409eff;
+  --primary-light-3:         #79bbff;
+  --primary-light-5:         #a0cfff;
+  --primary-light-7:         #c6e2ff;
+  --primary-light-9:         #ecf5ff;
+  --primary-dark-2:          #337ecc;
+  --primary-foreground:      #ffffff;
 
-  --foreground:          oklch(0.18  0.015 250);
-  --foreground-muted:    oklch(0.42  0.012 250);
-  --foreground-subtle:   oklch(0.58  0.01  250);
+  /* 状态色 */
+  --success:                 #67c23a;
+  --success-light-3:         #95d475;
+  --success-light-5:         #b3e19d;
+  --success-light-7:         #d1edc4;
+  --success-light-9:         #e1f3d8;
+  --warning:                 #e6a23c;
+  --warning-light-3:         #f3d19e;
+  --warning-light-5:         #f9d8a3;
+  --warning-light-7:         #fbe5c3;
+  --warning-light-9:         #fdf6ec;
+  --danger:                  #f56c6c;
+  --danger-light-3:          #fab6b6;
+  --danger-light-5:          #fbc4c4;
+  --danger-light-7:          #fcd3d3;
+  --danger-light-9:          #fef0f0;
+  --info:                    #909399;
+  --info-light-3:            #b1b3b8;
+  --info-light-5:            #c8c9cc;
+  --info-light-7:            #dedfe0;
+  --info-light-9:            #e9e9eb;
 
-  --border:        oklch(0.91 0.01 250);
-  --border-strong: oklch(0.82 0.014 250);
+  /* 语义色 — 跟 shadcn / tailwind 别名对齐 */
+  --background:              #ffffff;
+  --background-elevated:     #ffffff;
+  --background-overlay:      #ffffff;
+  --bg-page:                 #f2f3f5;
+  --foreground:              #303133;
+  --foreground-muted:        #606266;
+  --foreground-subtle:       #909399;
 
-  /* Single primary — electric blue, slightly deeper so it has body
-     on white. Saturation < 80% per the skill's colour rule. */
-  --primary:           oklch(0.50 0.20 250);
-  --primary-foreground: oklch(0.99 0 0);
-  --primary-glow:      oklch(0.50 0.20 250 / 0.32);
+  /* 边框 */
+  --border:                  #dcdfe6;
+  --border-light:            #e4e7ed;
+  --border-lighter:          #ebeef5;
+  --border-strong:           #d4d7dc;
 
-  /* Status accents — also single, never used as backgrounds. */
-  --accent-emerald: oklch(0.58 0.18 152);
-  --accent-amber:   oklch(0.65 0.18  75);
-  --accent-rose:    oklch(0.58 0.22  25);
+  /* 兼容 shadcn / tailwind 旧别名 */
+  --muted:                   #f5f7fa;
+  --muted-foreground:        #909399;
+  --accent:                  #ecf5ff;
+  --accent-foreground:       #409eff;
+  --input:                   #dcdfe6;
+  --ring:                    #409eff;
+  --destructive:             #f56c6c;
+  --destructive-foreground:  #ffffff;
 
-  /* Ambient gradient halos for hero / empty states. */
-  --ambient-blue:    oklch(0.50 0.20 250 / 0.08);
-  --ambient-emerald: oklch(0.58 0.18 152 / 0.06);
-  --ambient-amber:   oklch(0.65 0.18  75 / 0.05);
-
-  --muted:            oklch(0.96 0.005 250);
-  --muted-foreground: oklch(0.5  0.012 250);
-  --accent:           oklch(0.95 0.005 250);
-  --accent-foreground: oklch(0.18 0.015 250);
-  --destructive:          oklch(0.55 0.22  25);
-  --destructive-foreground: oklch(0.99 0 0);
-  --input:  oklch(0.91 0.01 250);
-  --ring:   oklch(0.50 0.20 250);
-  --radius: 0.5rem;
+  /* 圆角 — Element Plus 4px 基线 */
+  --radius:                  0.25rem;   /* 4px */
+  --radius-sm:               0.125rem;  /* 2px */
+  --radius-md:               0.25rem;   /* 4px */
+  --radius-lg:               0.25rem;   /* 4px（默认） */
+  --radius-xl:               0.5rem;    /* 8px */
+  --radius-2xl:              0.5rem;    /* 8px */
+  --radius-3xl:              0.75rem;   /* 12px */
 }
 
 /* ----------------------------------------------------------------
-   Dark mode — cool charcoal, never #000, with three depth layers
-   and an emerald secondary accent for status surfaces.
+   暗色 — Element Plus 官方暗色调色板
    ---------------------------------------------------------------- */
 .dark {
-  --background:          oklch(0.145 0.008 250);
-  --background-elevated: oklch(0.185 0.012 250);
-  --background-overlay:  oklch(0.225 0.014 250);
-  --surface-hero:        oklch(0.165 0.01  250);
+  --primary:                 #409eff;
+  --primary-light-3:         #79bbff;
+  --primary-light-5:         #a0cfff;
+  --primary-light-7:         #c6e2ff;
+  --primary-light-9:         #1d3a5c;
+  --primary-dark-2:          #337ecc;
+  --primary-foreground:      #ffffff;
 
-  --foreground:          oklch(0.97  0.005 250);
-  --foreground-muted:    oklch(0.72  0.012 250);
-  --foreground-subtle:   oklch(0.55  0.012 250);
+  --success:                 #67c23a;
+  --warning:                 #e6a23c;
+  --danger:                  #f56c6c;
+  --info:                    #909399;
 
-  --border:        oklch(0.30 0.014 250 / 0.85);
-  --border-strong: oklch(0.42 0.016 250);
+  --background:              #141414;
+  --background-elevated:     #1d1e1f;
+  --background-overlay:      #1d1e1f;
+  --bg-page:                 #0a0a0a;
+  --foreground:              #e5eaf3;
+  --foreground-muted:        #cfd3dc;
+  --foreground-subtle:       #a3a6ad;
 
-  --primary:           oklch(0.72 0.17 240);
-  --primary-foreground: oklch(0.14 0 0);
-  --primary-glow:      oklch(0.72 0.17 240 / 0.35);
+  --border:                  #4c4d4f;
+  --border-light:            #414243;
+  --border-lighter:          #363637;
+  --border-strong:           #58585b;
 
-  --accent-emerald: oklch(0.75 0.17 152);
-  --accent-amber:   oklch(0.82 0.16  75);
-  --accent-rose:    oklch(0.72 0.2   25);
-
-  --ambient-blue:    oklch(0.55 0.20 240 / 0.16);
-  --ambient-emerald: oklch(0.55 0.18 152 / 0.12);
-  --ambient-amber:   oklch(0.65 0.18  75 / 0.10);
-
-  --muted:            oklch(0.22 0.01  250);
-  --muted-foreground: oklch(0.65 0.012 250);
-  --accent:           oklch(0.25 0.014 250);
-  --accent-foreground: oklch(0.97 0.005 250);
-  --destructive:          oklch(0.65 0.22  25);
-  --destructive-foreground: oklch(0.97 0     0);
-  --input:  oklch(0.30 0.014 250);
-  --ring:   oklch(0.72 0.17 240);
+  --muted:                   #1d1e1f;
+  --muted-foreground:        #a3a6ad;
+  --accent:                  #1d3a5c;
+  --accent-foreground:       #79bbff;
+  --input:                   #4c4d4f;
+  --ring:                    #409eff;
+  --destructive:             #f56c6c;
+  --destructive-foreground:  #ffffff;
 }
 
 @theme inline {
   --font-sans:
-    "Geist Variable", ui-sans-serif, system-ui, -apple-system,
-    "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei",
-    sans-serif;
+    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, "PingFang SC", "Hiragino Sans GB",
+    "Microsoft YaHei", sans-serif;
   --font-mono:
-    "Geist Mono Variable", ui-monospace, "JetBrains Mono", "Cascadia Code",
-    "Fira Code", monospace;
+    ui-monospace, "SF Mono", Menlo, Monaco, Consolas,
+    "Liberation Mono", "Courier New", monospace;
 
   --color-background:          var(--background);
   --color-background-elevated: var(--background-elevated);
   --color-background-overlay:  var(--background-overlay);
-  --color-surface-hero:        var(--surface-hero);
+  --color-bg-page:             var(--bg-page);
   --color-foreground:          var(--foreground);
   --color-foreground-muted:    var(--foreground-muted);
   --color-foreground-subtle:   var(--foreground-subtle);
   --color-border:        var(--border);
+  --color-border-light:  var(--border-light);
+  --color-border-lighter:var(--border-lighter);
   --color-border-strong: var(--border-strong);
   --color-primary:            var(--primary);
   --color-primary-foreground: var(--primary-foreground);
-  --color-primary-glow:       var(--primary-glow);
-  --color-accent-emerald: var(--accent-emerald);
-  --color-accent-amber:   var(--accent-amber);
-  --color-accent-rose:    var(--accent-rose);
-  --color-ambient-blue:    var(--ambient-blue);
-  --color-ambient-emerald: var(--ambient-emerald);
-  --color-ambient-amber:   var(--ambient-amber);
+  --color-primary-light-3:    var(--primary-light-3);
+  --color-primary-light-5:    var(--primary-light-5);
+  --color-primary-light-7:    var(--primary-light-7);
+  --color-primary-light-9:    var(--primary-light-9);
+  --color-primary-dark-2:     var(--primary-dark-2);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-danger:  var(--danger);
+  --color-info:    var(--info);
   --color-card:           var(--background-elevated);
   --color-card-foreground: var(--foreground);
   --color-popover:          var(--background-overlay);
@@ -144,12 +173,12 @@
   --color-input:  var(--input);
   --color-ring:   var(--ring);
 
-  --radius-sm: 0.25rem;
-  --radius-md: 0.375rem;
-  --radius-lg: 0.5rem;
-  --radius-xl: 0.75rem;
-  --radius-2xl: 1rem;
-  --radius-3xl: 1.5rem;
+  --radius-sm: 0.125rem;
+  --radius-md: 0.25rem;
+  --radius-lg: 0.25rem;
+  --radius-xl: 0.5rem;
+  --radius-2xl: 0.5rem;
+  --radius-3xl: 0.75rem;
 }
 
 @layer base {
@@ -163,9 +192,6 @@
     overscroll-behavior: none;
   }
 
-  /* Desktop client — chrome text/UI chrome shouldn't be selectable.
-     Allow selection only inside form inputs, textareas, and explicit
-     contenteditable surfaces so users can still copy values. */
   body {
     -webkit-user-select: none;
     user-select: none;
@@ -179,50 +205,41 @@
   }
 
   body {
-    background-color: var(--background);
+    background-color: var(--bg-page);
     color: var(--foreground);
     font-family: var(--font-sans);
-    font-feature-settings: "ss01", "cv01", "cv11";
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     overscroll-behavior: none;
     text-rendering: optimizeLegibility;
-    /* Layered background: vertical subtle gradient + a faint
-       conic shimmer. Tuned so the eye reads depth without seeing
-       the texture. */
-    background-image:
-      radial-gradient(
-        1200px 600px at 50% -10%,
-        var(--ambient-blue),
-        transparent 60%
-      ),
-      radial-gradient(
-        900px 500px at 100% 100%,
-        var(--ambient-emerald),
-        transparent 55%
-      );
-    background-attachment: fixed;
     transition: background-color 200ms ease, color 200ms ease;
   }
 
-  /* Form controls */
   input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
   select,
   textarea {
     border-radius: var(--radius-md);
     background-color: var(--background-elevated);
+    border: 1px solid var(--border);
+    transition: border-color 200ms ease, box-shadow 200ms ease;
+  }
+  input:focus,
+  select:focus,
+  textarea:focus {
+    border-color: var(--primary);
+    outline: none;
+    box-shadow: 0 0 0 2px var(--primary-light-9);
   }
   input[type="checkbox"],
   input[type="radio"] {
-    border-radius: 0.25rem;
+    border-radius: 2px;
   }
   button {
     border-radius: var(--radius-md);
   }
 
-  /* Cursor states — explicit so WebView2 doesn't strip defaults. */
   button:not(:disabled),
-  [role="button"]:not([aria-disabled="true"]),
+  [role="button"]:not(:aria-disabled="true"]),
   a,
   label[for],
   summary {
@@ -238,133 +255,97 @@
     cursor: pointer;
   }
 
+  /* Element Plus 风格滚动条 — 8px 细滚动条 */
   ::-webkit-scrollbar {
-    width: 10px;
-    height: 10px;
+    width: 8px;
+    height: 8px;
   }
   ::-webkit-scrollbar-track {
     background: transparent;
   }
   ::-webkit-scrollbar-thumb {
     background: var(--border);
-    border-radius: 999px;
-    border: 2px solid var(--background);
+    border-radius: 4px;
   }
   ::-webkit-scrollbar-thumb:hover {
-    background: var(--border-strong);
+    background: var(--info);
   }
 }
 
-/* Smooth theme transition for backgrounds and borders */
+/* 主题切换过渡 */
 *,
 *::before,
 *::after {
   transition-property: background-color, border-color, color, fill, stroke;
-  transition-duration: 200ms;
+  transition-duration: 150ms;
   transition-timing-function: ease;
 }
 
 /* ============================================================
-   Surface utilities — first-class design language, used in JSX
+   兼容旧 utility — 同名 @utility 重定义为 Element Plus 风格
+   这样现有 19+ 模块不用动 class 就能用上新主题
    ============================================================ */
 
-/* Diffusion shadow: tinted to the bg hue, layered + inset 1px
-   highlight for a physical beveled edge. */
+/* 原 shadow-diffusion（多层 + 内嵌高光）→ 简化为 Element Plus 单层柔和阴影 */
 @utility shadow-diffusion {
   box-shadow:
-    0 1px 0 0 oklch(1 0 0 / 0.05) inset,
-    0 0 0 1px oklch(1 0 0 / 0.03),
-    0 24px 48px -20px oklch(0 0 0 / 0.18),
-    0 8px 16px -8px oklch(0 0 0 / 0.08);
+    0 12px 32px 4px rgba(0, 0, 0, 0.04),
+    0 8px 20px rgba(0, 0, 0, 0.08);
 }
 .dark .shadow-diffusion,
 .dark [class*="shadow-diffusion"] {
   box-shadow:
-    0 1px 0 0 oklch(1 0 0 / 0.06) inset,
-    0 0 0 1px oklch(0 0 0 / 0.4),
-    0 24px 48px -20px oklch(0 0 0 / 0.6),
-    0 8px 16px -8px oklch(0 0 0 / 0.4);
+    0 12px 32px 4px rgba(0, 0, 0, 0.36),
+    0 8px 20px rgba(0, 0, 0, 0.5);
 }
 
 @utility shadow-diffusion-sm {
-  box-shadow:
-    0 1px 0 0 oklch(1 0 0 / 0.04) inset,
-    0 4px 12px -4px oklch(0 0 0 / 0.1);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.06);
 }
 .dark .shadow-diffusion-sm,
 .dark [class*="shadow-diffusion-sm"] {
-  box-shadow:
-    0 1px 0 0 oklch(1 0 0 / 0.05) inset,
-    0 4px 12px -4px oklch(0 0 0 / 0.4);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
 }
 
 @utility shadow-glow {
-  box-shadow:
-    0 0 0 1px var(--primary-glow),
-    0 0 24px -4px var(--primary-glow);
+  box-shadow: 0 0 0 2px var(--primary-light-9);
 }
 
-/* Glass edge: 1px inner border simulating light refraction on a
-   frosted surface. Pair with `backdrop-blur` for true glass. */
+/* 原 glass-edge（多层内嵌高光）→ 简化为单层内嵌边框 */
 @utility glass-edge {
-  box-shadow:
-    inset 0 1px 0 0 oklch(1 0 0 / 0.1),
-    inset 0 -1px 0 0 oklch(0 0 0 / 0.15);
+  box-shadow: inset 0 0 0 1px var(--border);
 }
 .dark .glass-edge,
 .dark [class*="glass-edge"] {
-  box-shadow:
-    inset 0 1px 0 0 oklch(1 0 0 / 0.1),
-    inset 0 -1px 0 0 oklch(0 0 0 / 0.4);
+  box-shadow: inset 0 0 0 1px var(--border);
 }
 
-/* Metallic border: 1px gradient via two stacked box-shadows
-   (top lighter, bottom darker) so the edge reads like brushed
-   metal instead of a flat stroke. */
 @utility border-metallic {
-  box-shadow:
-    inset 0 1px 0 0 oklch(1 0 0 / 0.12),
-    inset 0 -1px 0 0 oklch(0 0 0 / 0.08);
+  box-shadow: inset 0 0 0 1px var(--border);
 }
 
-/* Hero ambient surface: a multi-stop radial mesh that's heavily
-   desaturated. Place on a .surface-hero container; it does the
-   "this is a hero, not a regular card" work without a single flat
-   colour. */
+/* surface-hero 原版用三层 radial gradient → 简化为 Element Plus 风格淡蓝渐变 */
 @utility surface-hero {
-  background-image:
-    radial-gradient(
-      1200px 600px at 0% 0%,
-      var(--ambient-blue),
-      transparent 60%
-    ),
-    radial-gradient(
-      800px 400px at 100% 100%,
-      var(--ambient-emerald),
-      transparent 50%
-    ),
-    radial-gradient(
-      600px 300px at 50% 50%,
-      var(--ambient-amber),
-      transparent 60%
-    );
+  background-image: linear-gradient(
+    135deg,
+    var(--primary-light-9) 0%,
+    var(--background-elevated) 100%
+  );
+}
+.dark [class*="surface-hero"] {
+  background-image: linear-gradient(
+    135deg,
+    var(--primary-light-9) 0%,
+    var(--background-elevated) 100%
+  );
 }
 
-/* Subtle dot grid for hero / empty-state backdrop. Masked so the
-   pattern fades at the edges instead of looking like wallpaper. */
+/* surface-grid 原版用细线网格 → 简化为更淡的网格 */
 @utility surface-grid {
   background-image:
-    linear-gradient(
-      to right,
-      var(--border) 1px,
-      transparent 1px
-    ),
-    linear-gradient(
-      to bottom,
-      var(--border) 1px,
-      transparent 1px
-    );
-  background-size: 32px 32px;
+    linear-gradient(to right, var(--border-lighter) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--border-lighter) 1px, transparent 1px);
+  background-size: 24px 24px;
   mask-image: radial-gradient(
     ellipse 80% 60% at 50% 0%,
     black 30%,
@@ -372,7 +353,7 @@
   );
 }
 
-/* Shimmer keyframe for skeleton loaders */
+/* Shimmer — 保留，Element Plus 风格的骨架 */
 @keyframes shimmer {
   0% { background-position: -200% 0; }
   100% { background-position: 200% 0; }
@@ -388,9 +369,9 @@
   animation: shimmer 2.4s linear infinite;
 }
 
-/* Subtle pulse for live status indicators */
+/* Pulse-ring — 保留，作为 Element Plus 的状态指示 */
 @keyframes pulse-ring {
-  0%   { box-shadow: 0 0 0 0 var(--primary-glow); }
+  0%   { box-shadow: 0 0 0 0 var(--primary-light-5); }
   70%  { box-shadow: 0 0 0 6px transparent; }
   100% { box-shadow: 0 0 0 0 transparent; }
 }
@@ -398,28 +379,11 @@
   animation: pulse-ring 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
 
-/* Float keyframe for subtle icon hover drift */
+/* Float — 保留 */
 @keyframes float {
   0%, 100% { transform: translateY(0); }
   50%      { transform: translateY(-2px); }
 }
 @utility float {
   animation: float 4s ease-in-out infinite;
-}
-
-/* ============================================================
-   Fixed-position film-grain overlay (hardware accelerated, never
-   repaints the scroll layer). Apply once on <body> for a subtle
-   premium texture. Turned off in light mode to keep the white
-   theme crisp.
-   ============================================================ */
-.dark::before {
-  content: "";
-  position: fixed;
-  inset: 0;
-  z-index: 0;
-  pointer-events: none;
-  opacity: 0.035;
-  background-image: url("data:image/svg+xml;utf8,<svg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
-  mix-blend-mode: overlay;
 }
