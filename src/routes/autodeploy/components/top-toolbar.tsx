@@ -1,10 +1,9 @@
 // 顶部工具条 —— 工作流名 / 状态 / 保存 / 模板 / dry-run / run
 //
 // 视觉：Element Plus 风格
-//   - 高 44px，bg-white，底部 1px border
-//   - 左侧：工作流名（可编辑）
-//   - 中间：状态徽章
-//   - 右侧：模板、保存、dry-run、run 按钮
+//   - 高 48px，bg-white，底部 1px border
+//   - 左侧：可编辑工作流名 + 状态徽章 + 计数
+//   - 右侧：模板、清空、保存、dry-run、run 按钮
 
 import {
   CheckCircle2,
@@ -18,9 +17,11 @@ import {
   Trash2,
   XCircle,
 } from "lucide-react";
+import { useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import { useAutodeployStore } from "../store";
 import { BUILTIN_TEMPLATES } from "../lib/templates";
-import { useState } from "react";
+import { cn } from "@/lib/utils";
 
 interface Props {
   onRun: () => void;
@@ -37,7 +38,7 @@ export function TopToolbar({ onRun, onDryRun }: Props) {
   const [name, setName] = useState(workflow.name);
 
   return (
-    <div className="flex h-11 shrink-0 items-center gap-2 border-b border-[var(--border)] bg-white px-3">
+    <div className="flex h-12 shrink-0 items-center gap-2.5 border-b border-[#dcdfe6] bg-white px-3">
       {/* 工作流名 */}
       <input
         value={name}
@@ -46,7 +47,8 @@ export function TopToolbar({ onRun, onDryRun }: Props) {
         onKeyDown={(e) => {
           if (e.key === "Enter") (e.target as HTMLInputElement).blur();
         }}
-        className="h-7 max-w-[200px] rounded border border-transparent bg-transparent px-2 text-[13px] font-medium text-[#303133] outline-none transition-colors hover:border-[var(--border)] focus:border-[var(--primary)] focus:bg-white"
+        placeholder="工作流名"
+        className="h-7 max-w-[220px] rounded border border-transparent bg-transparent px-2 text-[13px] font-medium text-[#303133] outline-none transition-colors hover:border-[#dcdfe6] focus:border-[#409eff] focus:bg-white"
       />
 
       {/* 状态徽章 */}
@@ -58,10 +60,13 @@ export function TopToolbar({ onRun, onDryRun }: Props) {
 
       <div className="flex-1" />
 
-      {/* 模板按钮 */}
+      {/* 模板 */}
       <TemplateMenu
         onPick={(id) => {
-          if (nodeCount > 0 && !window.confirm("加载模板会覆盖当前画布，继续？")) {
+          if (
+            nodeCount > 0 &&
+            !window.confirm("加载模板会覆盖当前画布，继续？")
+          ) {
             return;
           }
           applyTemplate(id);
@@ -70,7 +75,7 @@ export function TopToolbar({ onRun, onDryRun }: Props) {
         }}
       />
 
-      {/* 重置 */}
+      {/* 清空 */}
       <button
         onClick={() => {
           if (nodeCount === 0) return;
@@ -79,20 +84,17 @@ export function TopToolbar({ onRun, onDryRun }: Props) {
             setName("新建工作流");
           }
         }}
-        className="flex h-7 items-center gap-1 rounded px-2 text-[12px] text-[#606266] transition-colors hover:bg-[#f5f7fa] hover:text-[#303133]"
+        className="inline-flex h-7 items-center gap-1 rounded px-2.5 text-[12px] text-[#606266] transition-colors hover:bg-[#f5f7fa] hover:text-[#303133]"
         title="清空画布"
       >
         <Trash2 className="size-3.5" strokeWidth={1.75} />
         清空
       </button>
 
-      {/* 保存（持久化已自动，仅作视觉提示） */}
+      {/* 保存 */}
       <button
-        onClick={() => {
-          // 状态已经在 zustand persist 中自动保存
-          flash("已自动保存到 localStorage");
-        }}
-        className="flex h-7 items-center gap-1 rounded border border-[var(--border)] bg-white px-2.5 text-[12px] text-[#606266] transition-colors hover:border-[var(--primary-light-3)] hover:text-[var(--primary)]"
+        onClick={() => flash("已自动保存到 localStorage")}
+        className="inline-flex h-7 items-center gap-1 rounded border border-[#dcdfe6] bg-white px-2.5 text-[12px] text-[#606266] transition-colors hover:border-[#409eff]/40 hover:text-[#409eff]"
         title="工作流自动保存到 localStorage"
       >
         <Save className="size-3.5" strokeWidth={1.75} />
@@ -103,7 +105,7 @@ export function TopToolbar({ onRun, onDryRun }: Props) {
       <button
         onClick={onDryRun}
         disabled={runState === "running" || nodeCount === 0}
-        className="flex h-7 items-center gap-1 rounded border border-[var(--border)] bg-white px-2.5 text-[12px] text-[#606266] transition-colors hover:border-[var(--primary-light-3)] hover:text-[var(--primary)] disabled:cursor-not-allowed disabled:opacity-50"
+        className="inline-flex h-7 items-center gap-1 rounded border border-[#dcdfe6] bg-white px-2.5 text-[12px] text-[#606266] transition-colors hover:border-[#409eff]/40 hover:text-[#409eff] disabled:cursor-not-allowed disabled:opacity-50"
         title="只校验，不真正执行"
       >
         <FlaskConical className="size-3.5" strokeWidth={1.75} />
@@ -114,7 +116,7 @@ export function TopToolbar({ onRun, onDryRun }: Props) {
       <button
         onClick={onRun}
         disabled={runState === "running" || nodeCount === 0}
-        className="flex h-7 items-center gap-1 rounded bg-[var(--primary)] px-3 text-[12px] font-medium text-white transition-colors hover:bg-[var(--primary-dark-2)] disabled:cursor-not-allowed disabled:opacity-50"
+        className="inline-flex h-7 items-center gap-1 rounded bg-[#409eff] px-3 text-[12px] font-medium text-white transition-colors hover:bg-[#337ecc] disabled:cursor-not-allowed disabled:opacity-50"
       >
         {runState === "running" ? (
           <Loader2 className="size-3.5 animate-spin" strokeWidth={2} />
@@ -128,65 +130,117 @@ export function TopToolbar({ onRun, onDryRun }: Props) {
 }
 
 function RunStateBadge({ state }: { state: import("../types").RunState }) {
-  if (state === "idle") {
-    return (
-      <span className="flex h-6 items-center gap-1 rounded-full bg-[#f5f7fa] px-2 text-[11px] text-[#909399]">
-        <CircleDashed className="size-3" strokeWidth={2} /> idle
-      </span>
-    );
-  }
-  if (state === "running") {
-    return (
-      <span className="flex h-6 items-center gap-1 rounded-full bg-[#ecf5ff] px-2 text-[11px] text-[#409eff]">
-        <Loader2 className="size-3 animate-spin" strokeWidth={2} /> running
-      </span>
-    );
-  }
-  if (state === "success") {
-    return (
-      <span className="flex h-6 items-center gap-1 rounded-full bg-[#e1f3d8] px-2 text-[11px] text-[#67c23a]">
-        <CheckCircle2 className="size-3" strokeWidth={2} /> success
-      </span>
-    );
-  }
+  const config = (() => {
+    if (state === "running")
+      return {
+        bg: "bg-[#ecf5ff]",
+        color: "text-[#409eff]",
+        label: "running",
+        icon: Loader2,
+        spin: true,
+      };
+    if (state === "success")
+      return {
+        bg: "bg-[#e1f3d8]",
+        color: "text-[#67c23a]",
+        label: "success",
+        icon: CheckCircle2,
+        spin: false,
+      };
+    if (state === "error")
+      return {
+        bg: "bg-[#fef0f0]",
+        color: "text-[#f56c6c]",
+        label: "error",
+        icon: XCircle,
+        spin: false,
+      };
+    return {
+      bg: "bg-[#f5f7fa]",
+      color: "text-[#909399]",
+      label: "idle",
+      icon: CircleDashed,
+      spin: false,
+    };
+  })();
+  const Icon = config.icon;
   return (
-    <span className="flex h-6 items-center gap-1 rounded-full bg-[#fef0f0] px-2 text-[11px] text-[#f56c6c]">
-      <XCircle className="size-3" strokeWidth={2} /> error
+    <span
+      className={cn(
+        "inline-flex h-6 items-center gap-1 rounded-full px-2 text-[11px] font-medium",
+        config.bg,
+        config.color,
+      )}
+    >
+      <Icon
+        className={cn("size-3", config.spin && "animate-spin")}
+        strokeWidth={2}
+      />
+      {config.label}
     </span>
   );
 }
 
 function TemplateMenu({ onPick }: { onPick: (id: string) => void }) {
+  const [open, setOpen] = useState(false);
   return (
-    <div className="group relative">
-      <button className="flex h-7 items-center gap-1 rounded px-2 text-[12px] text-[#606266] transition-colors hover:bg-[#f5f7fa] hover:text-[#303133]">
+    <div
+      className="relative"
+      onPointerEnter={() => setOpen(true)}
+      onPointerLeave={() => setOpen(false)}
+    >
+      <button
+        className={cn(
+          "inline-flex h-7 items-center gap-1 rounded px-2.5 text-[12px] transition-colors",
+          open
+            ? "bg-[#ecf5ff] text-[#409eff]"
+            : "text-[#606266] hover:bg-[#f5f7fa] hover:text-[#303133]",
+        )}
+      >
         <Sparkles className="size-3.5" strokeWidth={1.75} />
         模板
       </button>
-      <div className="invisible absolute right-0 top-full z-50 mt-1 w-64 origin-top-right scale-95 rounded-md border border-[var(--border)] bg-white opacity-0 shadow-lg transition-all group-hover:visible group-hover:scale-100 group-hover:opacity-100">
-        <div className="border-b border-[var(--border-lighter)] px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.1em] text-[#909399]">
-          内置模板
-        </div>
-        {BUILTIN_TEMPLATES.map((t) => (
-          <button
-            key={t.id}
-            onClick={() => onPick(t.id)}
-            className="flex w-full items-start gap-2 px-3 py-2 text-left text-[12px] transition-colors hover:bg-[#f5f7fa]"
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            initial={{ opacity: 0, y: -4 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -4 }}
+            transition={{ duration: 0.15 }}
+            className="absolute right-0 top-full z-50 mt-1 w-72 origin-top-right overflow-hidden rounded-md border border-[#dcdfe6] bg-white shadow-lg"
           >
-            <FilePlus2 className="mt-0.5 size-3.5 shrink-0 text-[#909399]" strokeWidth={1.75} />
-            <span className="min-w-0 flex-1">
-              <span className="block font-medium text-[#303133]">{t.name}</span>
-              <span className="block text-[11px] text-[#909399]">{t.description}</span>
-            </span>
-          </button>
-        ))}
-      </div>
+            <div className="border-b border-[#ebeef5] bg-[#f5f7fa] px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.1em] text-[#909399]">
+              内置模板
+            </div>
+            {BUILTIN_TEMPLATES.map((t) => (
+              <button
+                key={t.id}
+                onClick={() => onPick(t.id)}
+                className="flex w-full items-start gap-2.5 border-b border-[#f5f7fa] px-3 py-2.5 text-left text-[12px] transition-colors last:border-b-0 hover:bg-[#f5f7fa]"
+              >
+                <FilePlus2
+                  className="mt-0.5 size-3.5 shrink-0 text-[#909399]"
+                  strokeWidth={1.75}
+                />
+                <span className="min-w-0 flex-1">
+                  <span className="block font-medium text-[#303133]">
+                    {t.name}
+                  </span>
+                  <span className="mt-0.5 block text-[11px] leading-relaxed text-[#909399]">
+                    {t.description}
+                  </span>
+                </span>
+              </button>
+            ))}
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
 
 function flash(msg: string) {
-  // 简易提示：浏览器自带的 title 闪烁
+  // 简单反馈：title 闪烁 1.5s
   const orig = document.title;
   document.title = msg;
   window.setTimeout(() => {
