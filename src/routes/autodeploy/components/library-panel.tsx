@@ -1,14 +1,13 @@
 // 左侧节点库 —— 列出 SOURCES / PROCESS / TRANSFER 三大类节点
 //
-// 拖拽：使用 Pointer Events 在 window 上监听（与 Canvas 统一风格）。
-// 拖动时显示一个跟随鼠标的 ghost 卡片；松开时调用 onLibraryDrop
-// 把节点类型 + 屏幕坐标抛给父组件，父组件决定是否创建节点。
-//
-// 视觉：Element Plus 风格，浅灰底 + 节点项 hover 高亮 + 分类标题分隔。
+// 拖拽：Library item pointerdown 时**同步**给 window 装 pointermove/up 监听
+//（不等 React useEffect 异步 commit），保证 pointerup 一定能命中 listener。
+// Playwright / 一些 WebView 在 drag 过程中 pointerId 会变，因此 listener
+// 只判"是否在拖拽中"，不再校验 pointerId。ESC = 放弃。
 
 import * as Icons from "lucide-react";
 import type { LucideIcon } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import { useAutodeployStore } from "../store";
 import type { NodeCategory, NodeType } from "../types";
 import { cn } from "@/lib/utils";
@@ -38,20 +37,14 @@ export interface LibraryDropEvent {
 }
 
 interface LibraryPanelProps {
-  /**
-   * 用户从库拖出一个节点到画布某处时调用。父组件应做坐标转换 + addNode。
-   * 如果不需要（例如只是 hover 看预览），可以不接。
-   */
   onLibraryDrop: (e: LibraryDropEvent) => void;
 }
 
 export function LibraryPanel({ onLibraryDrop }: LibraryPanelProps) {
   const nodeTypes = useAutodeployStore((s) => s.nodeTypes);
-  const [draggingType, setDraggingType] = useState<string | null>(null);
-  const [cursor, setCursor] = useState<{ x: number; y: number } | null>(null);
-  const dragInfoRef = useRef<{
+  const [dragging, setDragging] = useState<{
     type: string;
-    pointerId: number;
+    cursor: { x: number; y: number };
   } | null>(null);
 
   const byCategory = useMemo(() => {
@@ -66,54 +59,36 @@ export function LibraryPanel({ onLibraryDrop }: LibraryPanelProps) {
     return map;
   }, [nodeTypes]);
 
-  // window 级 pointer 监听 —— 即使鼠标移出库面板也不丢
-  useEffect(() => {
-    if (!draggingType) return;
-
-    function onMove(e: PointerEvent) {
-      if (
-        dragInfoRef.current &&
-        e.pointerId === dragInfoRef.current.pointerId
-      ) {
-        setCursor({ x: e.clientX, y: e.clientY });
-      }
-    }
-    function onUp(e: PointerEvent) {
-      if (
-        dragInfoRef.current &&
-        e.pointerId === dragInfoRef.current.pointerId
-      ) {
-        const type = dragInfoRef.current.type;
-        onLibraryDrop({ type, screenX: e.clientX, screenY: e.clientY });
-        dragInfoRef.current = null;
-        setDraggingType(null);
-        setCursor(null);
-      }
-    }
-
-    window.addEventListener("pointermove", onMove);
-    window.addEventListener("pointerup", onUp);
-    window.addEventListener("pointercancel", onUp);
-    return () => {
-      window.removeEventListener("pointermove", onMove);
-      window.removeEventListener("pointerup", onUp);
-      window.removeEventListener("pointercancel", onUp);
-    };
-  }, [draggingType, onLibraryDrop]);
-
+  // 同步装 native 监听（不进 useEffect 异步陷阱）。
+  // 用 onMouseDown 触发：Playwright drag 派发的是 mouse events（mousedown
+  // → mousemove → mouseup），现代浏览器会把 mouse event 提升为 pointer
+  // event，但 React 19 的事件委托有时不会触发 onPointerDown。直接绑
+  // mousedown 是最可靠的。
   const onItemPointerDown = (
-    e: React.PointerEvent<HTMLDivElement>,
+    e: React.MouseEvent<HTMLDivElement>,
     type: string,
   ) => {
     if (e.button !== 0) return;
     e.preventDefault();
-    dragInfoRef.current = { type, pointerId: e.pointerId };
-    setDraggingType(type);
-    setCursor({ x: e.clientX, y: e.clientY });
+    e.stopPropagation();
+    setDragging({ type, cursor: { x: e.clientX, y: e.clientY } });
+
+    function onMove(ev: MouseEvent) {
+      setDragging({ type, cursor: { x: ev.clientX, y: ev.clientY } });
+    }
+    function onUp(ev: MouseEvent) {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+      setDragging(null);
+      onLibraryDrop({ type, screenX: ev.clientX, screenY: ev.clientY });
+    }
+
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
   };
 
-  const draggingDef = draggingType
-    ? nodeTypes.find((t) => t.id === draggingType)
+  const draggingDef = dragging
+    ? nodeTypes.find((t) => t.id === dragging.type)
     : null;
 
   return (
@@ -123,9 +98,7 @@ export function LibraryPanel({ onLibraryDrop }: LibraryPanelProps) {
           <div className="text-[11px] font-semibold uppercase tracking-[0.1em] text-[#909399]">
             节点库
           </div>
-          <div className="mt-0.5 text-[11px] text-[#c0c4cc]">
-            拖到画布即可创建
-          </div>
+          <div className="mt-0.5 text-[11px] text-[#c0c4cc]">拖到画布即可创建</div>
         </div>
         <div className="flex-1 overflow-y-auto p-2">
           {(Object.keys(byCategory) as NodeCategory[]).map((cat) => (
@@ -152,11 +125,13 @@ export function LibraryPanel({ onLibraryDrop }: LibraryPanelProps) {
         </div>
       </aside>
 
-      {/* 跟随鼠标的 ghost */}
-      {draggingDef && cursor && (
+      {draggingDef && dragging && (
         <div
           className="pointer-events-none fixed z-50"
-          style={{ left: cursor.x + 12, top: cursor.y + 12 }}
+          style={{
+            left: dragging.cursor.x + 12,
+            top: dragging.cursor.y + 12,
+          }}
         >
           <div
             className={cn(
@@ -176,7 +151,7 @@ export function LibraryPanel({ onLibraryDrop }: LibraryPanelProps) {
 
 interface ItemProps {
   nodeType: NodeType;
-  onPointerDown: (e: React.PointerEvent<HTMLDivElement>, type: string) => void;
+  onPointerDown: (e: React.MouseEvent<HTMLDivElement>, type: string) => void;
 }
 
 function LibraryItem({ nodeType, onPointerDown }: ItemProps) {
@@ -185,7 +160,7 @@ function LibraryItem({ nodeType, onPointerDown }: ItemProps) {
     Icons.Circle;
   return (
     <div
-      onPointerDown={(e) => onPointerDown(e, nodeType.id)}
+      onMouseDown={(e) => onPointerDown(e, nodeType.id)}
       className={cn(
         "group flex cursor-grab select-none items-center gap-2 rounded border border-transparent border-l-[3px] bg-white px-2 py-2 text-[12px] text-[#303133] shadow-sm transition-all",
         "hover:-translate-y-px hover:border-[#dcdfe6] hover:shadow-md active:cursor-grabbing active:translate-y-0 active:shadow",

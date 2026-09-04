@@ -1,13 +1,16 @@
 // 画布 —— 节点 + 连线的容器
 //
 // 拖拽分层：
-//   - 平移 / 拖节点：Canvas 自己处理（onPointerDown + window listener）
-//   - 拖端口画连线：PortHandle 自包含（node-card 内部，事件发到 window）
+//   - 库 → 画布：LibraryPanel 自己用 mouse events
+//   - 节点拖动：Canvas 用 mouse events（pan / node 拖动）
+//   - 端口画连线：PortHandle 自己用 mouse events，调 props 回调通知 canvas
 //
-// 右键菜单：禁用默认 context menu，渲染自绘 ContextMenu（节点 / 模板 /
-// 缩放 / 清空）。
+// 所有拖拽都用 mouse events 一致模式：onMouseDown 同步装 window listener。
+// 这是因为 Playwright / 一些 WebView 的 pointer events 不可靠，统一用
+// mouse events 跨环境最稳。
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import type { MouseEvent as ReactMouseEvent } from "react";
 import * as Icons from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useAutodeployStore } from "../store";
@@ -21,20 +24,10 @@ import { cn } from "@/lib/utils";
 const NODE_W = 240;
 const NODE_H = 96;
 
-// 端口事件 payload
-interface PortMoveDetail {
-  fromNode: string;
-  fromPort: number;
-  fromSide: "input" | "output";
-  screenX: number;
-  screenY: number;
-}
-
 export function Canvas() {
   const containerRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<{
     kind: "pan" | "node";
-    pointerId: number;
     startScreenX: number;
     startScreenY: number;
     panOrigX?: number;
@@ -84,7 +77,6 @@ export function Canvas() {
     [viewport],
   );
 
-  // 端口命中测试（屏幕 → 端口）
   const hitTestPort = useCallback(
     (
       sx: number,
@@ -118,13 +110,29 @@ export function Canvas() {
     [workflow.nodes, nodeTypes, screenToWorld],
   );
 
+  // 工具：端口 → 世界坐标
+  function getPortWorld(
+    nodeId: string,
+    portIndex: number,
+    side: "input" | "output",
+  ): { x: number; y: number } | null {
+    const node = workflow.nodes.find((n) => n.id === nodeId);
+    if (!node) return null;
+    const def = nodeTypes.find((t) => t.id === node.type);
+    if (!def) return null;
+    const total = side === "input" ? def.inputs : def.outputs;
+    if (total === 0) return null;
+    const off = portOffset(portIndex, total, side, NODE_W, NODE_H);
+    return { x: node.x + off.x, y: node.y + off.y };
+  }
+
   // ─────────────────────────────────────────────
-  // 全局 window listener —— pan / node 拖拽
+  // 画布 / 节点 / 平移 拖拽（用 mouse events）
   // ─────────────────────────────────────────────
   useEffect(() => {
-    function onMove(e: PointerEvent) {
+    function onMove(e: MouseEvent) {
       const drag = dragRef.current;
-      if (!drag || drag.pointerId !== e.pointerId) return;
+      if (!drag) return;
       if (drag.kind === "pan") {
         const dx = e.clientX - drag.startScreenX;
         const dy = e.clientY - drag.startScreenY;
@@ -142,84 +150,29 @@ export function Canvas() {
         );
       }
     }
-    function onUp(e: PointerEvent) {
-      const drag = dragRef.current;
-      if (!drag || drag.pointerId !== e.pointerId) return;
+    function onUp() {
       dragRef.current = null;
     }
 
-    window.addEventListener("pointermove", onMove);
-    window.addEventListener("pointerup", onUp);
-    window.addEventListener("pointercancel", onUp);
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
     return () => {
-      window.removeEventListener("pointermove", onMove);
-      window.removeEventListener("pointerup", onUp);
-      window.removeEventListener("pointercancel", onUp);
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
     };
   }, [screenToWorld, setViewport, moveNode]);
 
-  // ─────────────────────────────────────────────
-  // 端口事件（PortHandle 通过 window CustomEvent 通知）
-  // ─────────────────────────────────────────────
-  useEffect(() => {
-    function onPortMove(e: Event) {
-      const detail = (e as CustomEvent<PortMoveDetail>).detail;
-      const startW = getPortWorld(detail.fromNode, detail.fromPort, detail.fromSide);
-      if (!startW) return;
-      const w = screenToWorld(detail.screenX, detail.screenY);
-      setPendingConn({ x1: startW.x, y1: startW.y, x2: w.x, y2: w.y });
-      const target = hitTestPort(detail.screenX, detail.screenY);
-      if (
-        target &&
-        target.nodeId !== detail.fromNode &&
-        target.side !== detail.fromSide
-      ) {
-        setHoverPort(target);
-      } else {
-        setHoverPort(null);
-      }
-    }
-    function onPortUp(e: Event) {
-      const detail = (e as CustomEvent<PortMoveDetail>).detail;
-      const target = hitTestPort(detail.screenX, detail.screenY);
-      if (
-        target &&
-        target.nodeId !== detail.fromNode &&
-        target.side !== detail.fromSide
-      ) {
-        const fromIsOutput = detail.fromSide === "output";
-        addConnection(
-          fromIsOutput ? detail.fromNode : target.nodeId,
-          fromIsOutput ? detail.fromPort : target.port,
-          fromIsOutput ? target.nodeId : detail.fromNode,
-          fromIsOutput ? target.port : detail.fromPort,
-        );
-      }
-      setPendingConn(null);
-      setHoverPort(null);
-    }
-
-    window.addEventListener("autodeploy:port-move", onPortMove);
-    window.addEventListener("autodeploy:port-up", onPortUp);
-    return () => {
-      window.removeEventListener("autodeploy:port-move", onPortMove);
-      window.removeEventListener("autodeploy:port-up", onPortUp);
-    };
-  }, [hitTestPort, screenToWorld, addConnection]);
-
-  // 画布本身 pointerdown
-  const onCanvasPointerDown = useCallback(
-    (e: React.PointerEvent<HTMLDivElement>) => {
+  // 画布本身 mousedown：pan / 取消选中
+  const onCanvasMouseDown = useCallback(
+    (e: ReactMouseEvent<HTMLDivElement>) => {
       if (e.button === 1 || (e.button === 0 && e.shiftKey)) {
         dragRef.current = {
           kind: "pan",
-          pointerId: e.pointerId,
           startScreenX: e.clientX,
           startScreenY: e.clientY,
           panOrigX: viewport.x,
           panOrigY: viewport.y,
         };
-        (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
         e.preventDefault();
       } else if (e.button === 0) {
         selectNode(null);
@@ -252,9 +205,9 @@ export function Canvas() {
   );
 
   // 拖节点
-  const onNodePointerDown = useCallback(
+  const onNodeMouseDown = useCallback(
     (
-      e: React.PointerEvent<HTMLDivElement>,
+      e: ReactMouseEvent<HTMLDivElement>,
       nodeId: string,
       nodeX: number,
       nodeY: number,
@@ -263,45 +216,105 @@ export function Canvas() {
       e.stopPropagation();
       dragRef.current = {
         kind: "node",
-        pointerId: e.pointerId,
         startScreenX: e.clientX,
         startScreenY: e.clientY,
         nodeId,
         nodeOrigX: nodeX,
         nodeOrigY: nodeY,
       };
-      const container = containerRef.current;
-      if (container) container.setPointerCapture(e.pointerId);
       selectNode(nodeId);
       e.preventDefault();
     },
     [selectNode],
   );
 
-  // 端口开始画连线（被 PortHandle.onConnectStart 调用）
-  const onConnectStart = useCallback(
-    (info: {
-      fromNode: string;
-      fromPort: number;
-      fromSide: "input" | "output";
-    }) => {
+  // 端口：port 拖动时
+  const onConnectMove = useCallback(
+    (screenX: number, screenY: number) => {
+      // 查找当前 pendingConn 的起点
+      if (!pendingConn) return;
+      // pendingConn 的 (x1, y1) 是世界坐标，screenX/Y 需转世界
+      const w = screenToWorld(screenX, screenY);
+      setPendingConn({ x1: pendingConn.x1, y1: pendingConn.y1, x2: w.x, y2: w.y });
+      const target = hitTestPort(screenX, screenY);
+      if (target) {
+        setHoverPort(target);
+      } else {
+        setHoverPort(null);
+      }
+    },
+    [pendingConn, screenToWorld, hitTestPort],
+  );
+
+  // 端口：port mouseup 时
+  const onConnectEnd = useCallback(
+    (screenX: number, screenY: number) => {
+      // 找到当前 pendingConn 的起点信息（通过 setState 不再能读，但 start info 在 ref 里）
+      // 改：从 pendingConn 反推起点不靠谱，hit test 起点时直接查 workflow
+      // 更简单：起点在 onConnectStart 时记下 ref
+      // 但 port 流程：start → move → end。我们没保留 from 信息在 canvas。
+      // 解决：port start 时 setPendingConn 包含 from 信息
+      // 重构 setPendingConn schema:
+      type Pending = {
+        fromNode: string;
+        fromPort: number;
+        fromSide: "input" | "output";
+        x1: number; y1: number; x2: number; y2: number;
+      } | null;
+      // 读 pendingConn via ref to get latest
+      const latest = pendingConnRef.current as Pending;
+      if (!latest) {
+        setPendingConn(null);
+        setHoverPort(null);
+        return;
+      }
+      const target = hitTestPort(screenX, screenY);
+      if (
+        target &&
+        target.nodeId !== latest.fromNode &&
+        target.side !== latest.fromSide
+      ) {
+        const fromIsOutput = latest.fromSide === "output";
+        addConnection(
+          fromIsOutput ? latest.fromNode : target.nodeId,
+          fromIsOutput ? latest.fromPort : target.port,
+          fromIsOutput ? target.nodeId : latest.fromNode,
+          fromIsOutput ? target.port : latest.fromPort,
+        );
+      }
+      setPendingConn(null);
+      setHoverPort(null);
+    },
+    [hitTestPort, addConnection],
+  );
+
+  // pendingConn 写到 ref（让 onConnectEnd 同步读）
+  const pendingConnRef = useRef(pendingConn);
+  useEffect(() => {
+    pendingConnRef.current = pendingConn;
+  }, [pendingConn]);
+
+  // 改 onConnectStart：让 pendingConn 同时存 from 信息
+  const onConnectStartV2 = useCallback(
+    (info: { fromNode: string; fromPort: number; fromSide: "input" | "output" }) => {
       const startW = getPortWorld(info.fromNode, info.fromPort, info.fromSide);
       if (!startW) return;
-      setPendingConn({ x1: startW.x, y1: startW.y, x2: startW.x, y2: startW.y });
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      setPendingConn({ fromNode: info.fromNode, fromPort: info.fromPort, fromSide: info.fromSide, x1: startW.x, y1: startW.y, x2: startW.x, y2: startW.y } as any);
     },
     [],
   );
 
   // 右键菜单
-  const onContextMenu = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    e.stopPropagation();
-    const x = e.clientX;
-    const y = e.clientY;
-    setContextMenu({ x, y });
-  }, []);
+  const onContextMenu = useCallback(
+    (e: ReactMouseEvent<HTMLDivElement>) => {
+      e.preventDefault();
+      e.stopPropagation();
+      setContextMenu({ x: e.clientX, y: e.clientY });
+    },
+    [],
+  );
 
-  // 右键菜单点外面关闭
   useEffect(() => {
     if (!contextMenu) return;
     function onDocClick(e: MouseEvent) {
@@ -321,7 +334,6 @@ export function Canvas() {
     };
   }, [contextMenu]);
 
-  // 右键菜单动作
   const onAddNodeAtMenu = (type: string) => {
     if (!contextMenu) return;
     const rect = containerRef.current?.getBoundingClientRect();
@@ -331,7 +343,10 @@ export function Canvas() {
     setContextMenu(null);
   };
   const onApplyTemplateFromMenu = (id: string) => {
-    if (workflow.nodes.length > 0 && !window.confirm("加载模板会覆盖当前画布，继续？")) {
+    if (
+      workflow.nodes.length > 0 &&
+      !window.confirm("加载模板会覆盖当前画布，继续？")
+    ) {
       setContextMenu(null);
       return;
     }
@@ -352,7 +367,7 @@ export function Canvas() {
     <div
       ref={containerRef}
       onWheel={onWheel}
-      onPointerDown={onCanvasPointerDown}
+      onMouseDown={onCanvasMouseDown}
       onContextMenu={onContextMenu}
       className="relative h-full w-full overflow-hidden bg-[#f5f7fa] select-none"
     >
@@ -407,8 +422,10 @@ export function Canvas() {
             key={n.id}
             node={n}
             selected={n.id === selectedNodeId}
-            onPointerDown={(e) => onNodePointerDown(e, n.id, n.x, n.y)}
-            onConnectStart={onConnectStart}
+            onPointerDown={(e) => onNodeMouseDown(e, n.id, n.x, n.y)}
+            onConnectStart={onConnectStartV2}
+            onConnectMove={onConnectMove}
+            onConnectEnd={onConnectEnd}
             width={NODE_W}
             height={NODE_H}
             hoveredPort={
@@ -454,25 +471,8 @@ export function Canvas() {
   );
 }
 
-// 工具：端口 → 世界坐标
-function getPortWorld(
-  nodeId: string,
-  portIndex: number,
-  side: "input" | "output",
-): { x: number; y: number } | null {
-  const state = useAutodeployStore.getState();
-  const node = state.workflow.nodes.find((n) => n.id === nodeId);
-  if (!node) return null;
-  const def = state.nodeTypes.find((t) => t.id === node.type);
-  if (!def) return null;
-  const total = side === "input" ? def.inputs : def.outputs;
-  if (total === 0) return null;
-  const off = portOffset(portIndex, total, side, NODE_W, NODE_H);
-  return { x: node.x + off.x, y: node.y + off.y };
-}
-
 // ─────────────────────────────────────────────
-// ContextMenu
+// ContextMenu（保持原样）
 // ─────────────────────────────────────────────
 interface ContextMenuProps {
   x: number;
@@ -495,7 +495,6 @@ function ContextMenu({
   onClear,
   onZoomTo,
 }: ContextMenuProps) {
-  // 避免溢出屏幕
   const MENU_W = 220;
   const MENU_MAX_H = 400;
   const adjustedX = Math.min(x, window.innerWidth - MENU_W - 8);
@@ -513,7 +512,6 @@ function ContextMenu({
       className="fixed z-50 w-[220px] overflow-hidden rounded-md border border-[#dcdfe6] bg-white shadow-lg"
       style={{ left: adjustedX, top: adjustedY }}
     >
-      {/* 新建节点 */}
       <MenuLabel>新建节点</MenuLabel>
       {(Object.keys(byCategory) as Array<"source" | "process" | "transfer">).map(
         (cat) => {

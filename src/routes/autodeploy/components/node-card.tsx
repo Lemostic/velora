@@ -2,18 +2,15 @@
 //
 // 视觉：Element Plus 风格
 //   - 240×96 矩形，bg-white border-[#dcdfe6] rounded-md
-//   - 左侧 3px 分类色条（source=绿 / process=蓝 / transfer=橙）
-//   - 顶部：图标 + 标题
-//   - 中部：第一条非空参数摘要
-//   - 底部：类型标识（category · type id）
-//   - 右上角：状态点
-//   - 选中：ring-2 ring-primary
-//   - 端口：自包含 PortHandle 子组件，setPointerCapture 到自身
+//   - 左侧 3px 分类色条
+//   - 端口：自包含 PortHandle 子组件，用 onMouseDown + window 同步
+//     native listener（Playwright drag dispatch 的是 mouse events，
+//     React onPointerDown 不一定触发）
 
 import * as Icons from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useEffect, useRef } from "react";
-import type { PointerEvent as ReactPointerEvent } from "react";
+import type { MouseEvent as ReactMouseEvent } from "react";
 import { useAutodeployStore } from "../store";
 import { portOffset } from "../lib/geometry";
 import type { CanvasNode, NodeStatus } from "../types";
@@ -52,134 +49,81 @@ interface Props {
   selected: boolean;
   width: number;
   height: number;
-  onPointerDown: (e: ReactPointerEvent<HTMLDivElement>) => void;
-  /** 开始画连线（port 自身 pointer down） */
-  onConnectStart: (info: {
-    fromNode: string;
-    fromPort: number;
-    fromSide: "input" | "output";
-    pointerId: number;
-    startX: number;
-    startY: number;
-  }) => void;
+  onPointerDown: (e: ReactMouseEvent<HTMLDivElement>) => void;
   hoveredPort?: { port: number; side: "input" | "output" } | null;
 }
 
 // ─────────────────────────────────────────────
-// PortHandle —— 端口（自包含拖拽）
+// PortHandle —— 端口（自包含 mouse 拖拽）
 // ─────────────────────────────────────────────
 interface PortProps {
   nodeId: string;
   portIndex: number;
   side: "input" | "output";
-  x: number; // 节点内坐标（0 或 width）
+  x: number;
   y: number;
   isHovered: boolean;
-  onConnectStart: Props["onConnectStart"];
+  /** 通知 canvas 这条 port 起始了画线 */
+  onConnectStart: (info: { fromNode: string; fromPort: number; fromSide: "input" | "output" }) => void;
+  /** 通知 canvas 鼠标移动（更新 pendingConn） */
+  onConnectMove: (screenX: number, screenY: number) => void;
+  /** 通知 canvas mouseup（完成画线） */
+  onConnectEnd: (screenX: number, screenY: number) => void;
 }
 
-function PortHandle({ nodeId, portIndex, side, x, y, isHovered, onConnectStart }: PortProps) {
+function PortHandle({
+  nodeId,
+  portIndex,
+  side,
+  x,
+  y,
+  isHovered,
+  onConnectStart,
+  onConnectMove,
+  onConnectEnd,
+}: PortProps) {
   const ref = useRef<HTMLDivElement>(null);
-  const dragInfoRef = useRef<{
-    fromNode: string;
-    fromPort: number;
-    fromSide: "input" | "output";
-    pointerId: number;
-    startX: number;
-    startY: number;
-  } | null>(null);
 
-  // 自包含 pointermove / pointerup 监听 —— 绑到 port 自身
-  // setPointerCapture(pointerId) 后 move/up 都会路由到 port，不管鼠标
-  // 在 DOM 树哪个位置。比依赖 window 冒泡更可靠，跨 WebView 一致。
   useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    let isActive = false;
-
-    function onMove(e: PointerEvent) {
-      if (
-        !isActive ||
-        !dragInfoRef.current ||
-        e.pointerId !== dragInfoRef.current.pointerId
-      )
-        return;
-      // 由画布层负责更新 pendingConn（需要访问画布状态）
-      window.dispatchEvent(
-        new CustomEvent("autodeploy:port-move", {
-          detail: {
-            fromNode: dragInfoRef.current!.fromNode,
-            fromPort: dragInfoRef.current!.fromPort,
-            fromSide: dragInfoRef.current!.fromSide,
-            screenX: e.clientX,
-            screenY: e.clientY,
-          },
-        }),
-      );
-    }
-
-    function onUp(e: PointerEvent) {
-      if (
-        !isActive ||
-        !dragInfoRef.current ||
-        e.pointerId !== dragInfoRef.current.pointerId
-      )
-        return;
-      window.dispatchEvent(
-        new CustomEvent("autodeploy:port-up", {
-          detail: {
-            fromNode: dragInfoRef.current!.fromNode,
-            fromPort: dragInfoRef.current!.fromPort,
-            fromSide: dragInfoRef.current!.fromSide,
-            screenX: e.clientX,
-            screenY: e.clientY,
-          },
-        }),
-      );
-      try {
-        el?.releasePointerCapture(e.pointerId);
-      } catch {
-        /* ignore */
-      }
-      dragInfoRef.current = null;
-      isActive = false;
-    }
-
-    el.addEventListener("pointermove", onMove);
-    el.addEventListener("pointerup", onUp);
-    el.addEventListener("pointercancel", onUp);
+    // 清理：组件 unmount 时移除可能遗留的 listener
+    // （实际上 listener 在 finish 中已经 remove，这里只是兜底）
     return () => {
-      el.removeEventListener("pointermove", onMove);
-      el.removeEventListener("pointerup", onUp);
-      el.removeEventListener("pointercancel", onUp);
+      // noop
     };
   }, []);
 
   return (
     <div
       ref={ref}
-      onPointerDown={(e) => {
+      onMouseDown={(e) => {
         if (e.button !== 0) return;
         e.stopPropagation();
         e.preventDefault();
-        // 关键：setPointerCapture 到 port 自身，move/up 都路由到它
-        ref.current?.setPointerCapture(e.pointerId);
-        dragInfoRef.current = {
-          fromNode: nodeId,
-          fromPort: portIndex,
-          fromSide: side,
-          pointerId: e.pointerId,
-          startX: e.clientX,
-          startY: e.clientY,
-        };
-        onConnectStart({
-          fromNode: nodeId,
-          fromPort: portIndex,
-          fromSide: side,
-          pointerId: e.pointerId,
-          startX: e.clientX,
-          startY: e.clientY,
-        });
+        // 通知 canvas 起点
+        onConnectStart({ fromNode: nodeId, fromPort: portIndex, fromSide: side });
+        // 同步装 native window listener（不进 useEffect 异步）
+        function onMove(ev: MouseEvent) {
+          onConnectMove(ev.clientX, ev.clientY);
+        }
+        function onUp(ev: MouseEvent) {
+          window.removeEventListener("mousemove", onMove);
+          window.removeEventListener("mouseup", onUp);
+          window.removeEventListener("keydown", onKey);
+          onConnectEnd(ev.clientX, ev.clientY);
+        }
+        function onKey(ev: KeyboardEvent) {
+          if (ev.key === "Escape") {
+            window.removeEventListener("mousemove", onMove);
+            window.removeEventListener("mouseup", onUp);
+            window.removeEventListener("keydown", onKey);
+            // ESC = 取消：把鼠标移出任何 port 范围之外（不在画布上）就不会创建
+            // 简单起见：给一个明显在画布外的坐标让 hit test 失败
+            onConnectEnd(-9999, -9999);
+          }
+        }
+        window.addEventListener("mousemove", onMove);
+        window.addEventListener("mouseup", onUp);
+        window.addEventListener("keydown", onKey);
       }}
       className={cn(
         "absolute z-10 -translate-x-1/2 -translate-y-1/2 cursor-crosshair rounded-full border-2 border-white transition-all",
@@ -203,8 +147,14 @@ export function NodeCard({
   height,
   onPointerDown,
   onConnectStart,
+  onConnectMove,
+  onConnectEnd,
   hoveredPort,
-}: Props) {
+}: Props & {
+  onConnectStart: PortProps["onConnectStart"];
+  onConnectMove: PortProps["onConnectMove"];
+  onConnectEnd: PortProps["onConnectEnd"];
+}) {
   const nodeTypes = useAutodeployStore((s) => s.nodeTypes);
   const def = nodeTypes.find((t) => t.id === node.type);
 
@@ -221,7 +171,7 @@ export function NodeCard({
 
   return (
     <div
-      onPointerDown={onPointerDown}
+      onMouseDown={onPointerDown}
       className={cn(
         "absolute select-none rounded-md border bg-white shadow-sm transition-shadow",
         "border-[#dcdfe6] hover:shadow-md",
@@ -291,6 +241,8 @@ export function NodeCard({
               y={p.y}
               isHovered={hoveredPort?.side === "input" && hoveredPort.port === i}
               onConnectStart={onConnectStart}
+              onConnectMove={onConnectMove}
+              onConnectEnd={onConnectEnd}
             />
           );
         })}
@@ -308,6 +260,8 @@ export function NodeCard({
               y={p.y}
               isHovered={hoveredPort?.side === "output" && hoveredPort.port === i}
               onConnectStart={onConnectStart}
+              onConnectMove={onConnectMove}
+              onConnectEnd={onConnectEnd}
             />
           );
         })}
