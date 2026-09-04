@@ -27,6 +27,7 @@ import {
   Search,
   Settings,
   ShieldCheck,
+  Workflow,
 } from "lucide-react";
 
 /**
@@ -49,6 +50,7 @@ export type ModuleId =
   | "es-query"
   | "excel-schedule"
   | "weekly-report"
+  | "autodeploy"
   | "preferences"
   | "json-formatter"
   | "regex-tester"
@@ -105,6 +107,7 @@ const ICON_MAP: Record<string, LucideIcon> = {
   Palette,
   Clock,
   ClipboardList,
+  Workflow,
 };
 
 export const MODULE_REGISTRY: ModuleMeta[] = [
@@ -239,6 +242,18 @@ export const MODULE_REGISTRY: ModuleMeta[] = [
     tags: ["rust_xlsxwriter", "合并单元格", "本地持久化"],
     icon: ClipboardList,
     path: "/modules/weekly-report",
+    status: "ready",
+  },
+  {
+    id: "autodeploy",
+    name: "自动化部署",
+    category: "devtools",
+    description: "Node-RED 风格工作流编辑器，拖拽节点串成部署流水线",
+    longDescription:
+      "把部署流水线里那些反复出现的原子操作（指定本地文件 / 目录、压缩、解压、复制、远端 SFTP 上传 / 下载 / 删除 / 备份）做成可拖拽节点。\n\n左侧节点库按 SOURCES / PROCESS / TRANSFER 三大类分组；从库拖到画布上即可创建节点，节点之间用贝塞尔曲线连接形成流水线；右侧 Inspector 根据节点类型动态渲染参数表单，必填字段加 REQUIRED 标记。\n\n顶部工具条支持保存工作流 / dry-run（只校验不执行）/ run（按拓扑顺序真正执行）；底部日志面板按节点依次回显执行结果，状态用 idle / running / success / error 四色提示。\n\n内置模板：「前端页面发布」「后端 War 发布」，一键加载即可开始改造。",
+    tags: ["工作流", "画布", "SFTP", "拖拽"],
+    icon: Workflow,
+    path: "/modules/autodeploy",
     status: "ready",
   },
   {

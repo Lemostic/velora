@@ -12,6 +12,7 @@ import { ExcelSchedulePage } from "@/routes/excel-schedule-page";
 import { WeeklyReportPage } from "@/routes/weekly-report-page";
 import { ProcessManagerPage } from "@/routes/process-manager-page";
 import { EsQueryPage } from "@/routes/es-query-page";
+import { AutodeployPage } from "@/routes/autodeploy-page";
 import { PreferencesPage } from "@/routes/preferences-page";
 import { NotFoundPage } from "@/routes/not-found-page";
 import { useTheme } from "@/hooks/use-theme";
@@ -59,6 +60,10 @@ const router = createBrowserRouter([
       {
         path: "modules/weekly-report",
         element: <WeeklyReportPage />,
+      },
+      {
+        path: "modules/autodeploy",
+        element: <AutodeployPage />,
       },
       { path: "modules/preferences", element: <PreferencesPage /> },
       { path: "*", element: <NotFoundPage /> },

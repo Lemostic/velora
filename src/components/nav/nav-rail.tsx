@@ -15,6 +15,7 @@ import {
   Search,
   Settings as SettingsIcon,
   Sparkles,
+  Workflow,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Separator } from "@/components/ui/separator";
@@ -54,6 +55,7 @@ const FILE_NAV: NavItem[] = [
 const DEV_NAV: NavItem[] = [
   { to: "/modules/process-manager", label: "进程管理", icon: Cpu },
   { to: "/modules/es-query", label: "ES 查询", icon: Search },
+  { to: "/modules/autodeploy", label: "自动化部署", icon: Workflow },
 ];
 
 const SYSTEM_NAV: NavItem[] = [
