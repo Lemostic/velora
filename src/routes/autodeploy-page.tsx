@@ -34,6 +34,20 @@ export function AutodeployPage() {
     loadNodeTypes();
   }, [loadNodeTypes]);
 
+  // 关窗/刷新保护：autosave 已经在 localStorage 里（zustand persist middleware
+  // 每次画布变更就写），但浏览器仍会弹"确认离开"。这里只在画布非空 + 有未
+  // 提交变更时弹，纯空画布不打扰用户。
+  useEffect(() => {
+    const onBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (useAutodeployStore.getState().workflow.nodes.length > 0) {
+        e.preventDefault();
+        e.returnValue = "";
+      }
+    };
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => window.removeEventListener("beforeunload", onBeforeUnload);
+  }, []);
+
   // 库拖拽到画布：坐标转换 + addNode
   const onLibraryDrop = (e: LibraryDropEvent) => {
     const rect = canvasRef.current?.getBoundingClientRect();

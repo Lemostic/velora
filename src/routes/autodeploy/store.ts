@@ -341,6 +341,20 @@ const FALLBACK_NODE_TYPES: NodeType[] = [
       },
     ],
   },
+
+  // ─────────────────────────────────────────
+  // 流程标记节点（开始 / 结束入口）
+  // ─────────────────────────────────────────
+  {
+    id: "start",
+    category: "flow",
+    label: "开始",
+    description: "工作流入口；画布有且仅有一个，删除后才能再加",
+    icon: "Play",
+    inputs: 0,
+    outputs: 1,
+    fields: [],
+  },
 ];
 
 // 检测 Tauri runtime 是否存在
@@ -361,6 +375,8 @@ interface State {
   // 运行态（不持久化）
   runState: RunState;
   logs: LogEntry[];
+  // 自动暂存时间戳（不持久化，UI 显示用）
+  lastSavedAt: number;
 
   // 启动
   loadNodeTypes: () => Promise<void>;
@@ -419,6 +435,7 @@ export const useAutodeployStore = create<State>()(
       selectedNodeId: null,
       runState: "idle",
       logs: [],
+      lastSavedAt: Date.now(),
 
       loadNodeTypes: async () => {
         if (!hasTauri()) {
@@ -443,6 +460,11 @@ export const useAutodeployStore = create<State>()(
       },
 
       addNode: (type, x, y) => {
+        // 流程标记节点（开始 / 结束）画布只能有 1 个，已存在则拒绝添加。
+        if (type === "start" || type === "end") {
+          const exists = get().workflow.nodes.some((n) => n.type === type);
+          if (exists) return "";
+        }
         const id = makeId("n");
         const def = get().nodeTypes.find((n) => n.id === type);
         const params: Record<string, string> = {};
@@ -604,3 +626,14 @@ export const useSelectedNode = (): CanvasNode | null => {
     return s.workflow.nodes.find((n) => n.id === s.selectedNodeId) ?? null;
   });
 };
+
+// 订阅 workflow 变化 → 更新 lastSavedAt（zustand persist middleware 已经
+// 每次 setState 都会自动写 localStorage，这里只是把"已写时间"暴露给 UI 用）。
+// 用 workflow 引用比对过滤（zustand 默认 subscribe 不接 selector）。
+let prevWorkflowRef = useAutodeployStore.getState().workflow;
+useAutodeployStore.subscribe((s) => {
+  if (s.workflow !== prevWorkflowRef) {
+    prevWorkflowRef = s.workflow;
+    useAutodeployStore.setState({ lastSavedAt: Date.now() });
+  }
+});

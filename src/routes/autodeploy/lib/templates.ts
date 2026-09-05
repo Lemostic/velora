@@ -1,7 +1,8 @@
 // 内置工作流模板
 //
-// 提供三个常见发布场景作为起始模板，用户加载后可以微调。
-// 第三个模板演示了"成功 / 失败分支"（if_status）和"重试"节点。
+// 每个模板都以一个 start 节点开始（流程入口，画布有且仅有一个），
+// 以 end 节点结束。所有非 start/end 节点必须挂在 start 出发
+// 的路径上，否则加载后会被 validateWorkflow 标为孤立。
 
 import type { Workflow, WorkflowTemplate } from "../types";
 
@@ -9,6 +10,14 @@ const FRONTEND_PUBLISH: Workflow = {
   version: 1,
   name: "前端页面发布",
   nodes: [
+    {
+      id: "n_start",
+      type: "start",
+      x: -220,
+      y: 80,
+      params: {},
+      status: "idle",
+    },
     {
       id: "n_src",
       type: "local_dir",
@@ -61,6 +70,13 @@ const FRONTEND_PUBLISH: Workflow = {
     },
   ],
   connections: [
+    {
+      id: "c_start",
+      fromNode: "n_start",
+      fromPort: 0,
+      toNode: "n_src",
+      toPort: 0,
+    },
     { id: "c1", fromNode: "n_src", fromPort: 0, toNode: "n_zip", toPort: 0 },
     {
       id: "c2",
@@ -90,6 +106,14 @@ const BACKEND_WAR_PUBLISH: Workflow = {
   version: 1,
   name: "后端 War 发布",
   nodes: [
+    {
+      id: "n_start",
+      type: "start",
+      x: -220,
+      y: 80,
+      params: {},
+      status: "idle",
+    },
     {
       id: "n_war",
       type: "local_file",
@@ -184,6 +208,13 @@ const BACKEND_WAR_PUBLISH: Workflow = {
   ],
   connections: [
     {
+      id: "c_start",
+      fromNode: "n_start",
+      fromPort: 0,
+      toNode: "n_war",
+      toPort: 0,
+    },
+    {
       id: "c1",
       fromNode: "n_war",
       fromPort: 0,
@@ -239,6 +270,14 @@ const ROBUST_PUBLISH: Workflow = {
   version: 1,
   name: "健壮发布（含重试）",
   nodes: [
+    {
+      id: "n_start",
+      type: "start",
+      x: -220,
+      y: 80,
+      params: {},
+      status: "idle",
+    },
     {
       id: "n_src",
       type: "local_dir",
@@ -299,6 +338,13 @@ const ROBUST_PUBLISH: Workflow = {
     },
   ],
   connections: [
+    {
+      id: "c_start",
+      fromNode: "n_start",
+      fromPort: 0,
+      toNode: "n_src",
+      toPort: 0,
+    },
     { id: "c1", fromNode: "n_src", fromPort: 0, toNode: "n_zip", toPort: 0 },
     {
       id: "c2",

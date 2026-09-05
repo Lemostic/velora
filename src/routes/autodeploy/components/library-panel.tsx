@@ -16,18 +16,21 @@ const CATEGORY_LABEL: Record<NodeCategory, string> = {
   source: "SOURCES",
   process: "PROCESS",
   transfer: "TRANSFER",
+  flow: "FLOW",
 };
 
 const CATEGORY_DESC: Record<NodeCategory, string> = {
   source: "起点 · 指定本地 / 远端的数据源",
   process: "处理 · 压缩 / 解压 / 复制",
   transfer: "传输 · 远端 SFTP 上传 / 下载 / 备份 / 删除",
+  flow: "流程标记 · 开始 / 结束（画布唯一）",
 };
 
 const CATEGORY_TINT: Record<NodeCategory, string> = {
   source: "border-l-[#67c23a]",
   process: "border-l-[#409eff]",
   transfer: "border-l-[#e6a23c]",
+  flow: "border-l-[#909399]",
 };
 
 export interface LibraryDropEvent {
@@ -52,12 +55,18 @@ export function LibraryPanel({ onLibraryDrop }: LibraryPanelProps) {
       source: [],
       process: [],
       transfer: [],
+      flow: [],
     };
     for (const t of nodeTypes) {
       map[t.category].push(t);
     }
     return map;
   }, [nodeTypes]);
+
+  // START / END 唯一性：画布已存在则禁用 library 里的对应项
+  const existingNodeTypes = useAutodeployStore(
+    (s) => new Set(s.workflow.nodes.map((n) => n.type)),
+  );
 
   // 同步装 native 监听（不进 useEffect 异步陷阱）。
   // 用 onMouseDown 触发：Playwright drag 派发的是 mouse events（mousedown
@@ -112,13 +121,20 @@ export function LibraryPanel({ onLibraryDrop }: LibraryPanelProps) {
                 </div>
               </header>
               <div className="space-y-1">
-                {byCategory[cat].map((t) => (
-                  <LibraryItem
-                    key={t.id}
-                    nodeType={t}
-                    onPointerDown={onItemPointerDown}
-                  />
-                ))}
+                {byCategory[cat].map((t) => {
+                  // 流程标记节点（start / end）画布唯一，已存在则禁用
+                  const disabled =
+                    (t.id === "start" || t.id === "end") &&
+                    existingNodeTypes.has(t.id);
+                  return (
+                    <LibraryItem
+                      key={t.id}
+                      nodeType={t}
+                      disabled={disabled}
+                      onPointerDown={onItemPointerDown}
+                    />
+                  );
+                })}
               </div>
             </section>
           ))}
@@ -151,28 +167,39 @@ export function LibraryPanel({ onLibraryDrop }: LibraryPanelProps) {
 
 interface ItemProps {
   nodeType: NodeType;
+  disabled?: boolean;
   onPointerDown: (e: React.MouseEvent<HTMLDivElement>, type: string) => void;
 }
 
-function LibraryItem({ nodeType, onPointerDown }: ItemProps) {
+function LibraryItem({ nodeType, disabled, onPointerDown }: ItemProps) {
   const Icon =
     (Icons as unknown as Record<string, LucideIcon>)[nodeType.icon] ||
     Icons.Circle;
   return (
     <div
-      onMouseDown={(e) => onPointerDown(e, nodeType.id)}
+      onMouseDown={(e) => {
+        if (disabled) return;
+        onPointerDown(e, nodeType.id);
+      }}
       className={cn(
-        "group flex cursor-grab select-none items-center gap-2 rounded border border-transparent border-l-[3px] bg-white px-2 py-2 text-[12px] text-[#303133] shadow-sm transition-all",
-        "hover:-translate-y-px hover:border-[#dcdfe6] hover:shadow-md active:cursor-grabbing active:translate-y-0 active:shadow",
+        "group flex select-none items-center gap-2 rounded border border-transparent border-l-[3px] bg-white px-2 py-2 text-[12px] text-[#303133] shadow-sm transition-all",
+        !disabled &&
+          "cursor-grab hover:-translate-y-px hover:border-[#dcdfe6] hover:shadow-md active:cursor-grabbing active:translate-y-0 active:shadow",
+        disabled && "cursor-not-allowed opacity-50",
         CATEGORY_TINT[nodeType.category],
       )}
-      title={nodeType.description}
+      title={disabled ? `${nodeType.description}（画布已存在）` : nodeType.description}
     >
       <Icon
         className="size-3.5 shrink-0 text-[#606266]"
         strokeWidth={1.75}
       />
       <span className="flex-1 truncate font-medium">{nodeType.label}</span>
+      {disabled && (
+        <span className="rounded bg-[#f0f9ff] px-1 text-[9px] font-medium uppercase tracking-wider text-[#909399]">
+          已添加
+        </span>
+      )}
     </div>
   );
 }

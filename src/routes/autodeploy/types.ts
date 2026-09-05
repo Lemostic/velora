@@ -3,7 +3,7 @@
 // 与 Rust 端 autodeploy.rs 的 NodeType / FieldDef 形状一致；
 // 后端通过 autodeploy_list_node_types 返回这些数据。
 
-export type NodeCategory = "source" | "process" | "transfer";
+export type NodeCategory = "source" | "process" | "transfer" | "flow";
 
 export type FieldKind = "text" | "path" | "number" | "select" | "checkbox";
 

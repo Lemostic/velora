@@ -9,15 +9,17 @@
 // 这是因为 Playwright / 一些 WebView 的 pointer events 不可靠，统一用
 // mouse events 跨环境最稳。
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { MouseEvent as ReactMouseEvent } from "react";
 import * as Icons from "lucide-react";
+import { AlertCircle, X } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useAutodeployStore } from "../store";
 import { NodeCard } from "./node-card";
 import { ConnectionLine, PendingConnection } from "./connection-line";
 import { portOffset } from "../lib/geometry";
 import { BUILTIN_TEMPLATES } from "../lib/templates";
+import { validateWorkflow } from "../lib/validate";
 import type { NodeType } from "../types";
 import { cn } from "@/lib/utils";
 
@@ -80,6 +82,17 @@ export function Canvas() {
   const addConnection = useAutodeployStore((s) => s.addConnection);
   const addNode = useAutodeployStore((s) => s.addNode);
   const applyTemplate = useAutodeployStore((s) => s.applyTemplate);
+
+  // 工作流完整性校验（与 top-toolbar 共用同一份逻辑）
+  const validationErrors = useMemo(
+    () => validateWorkflow(workflow, nodeTypes),
+    [workflow, nodeTypes],
+  );
+  const [bannerDismissed, setBannerDismissed] = useState(false);
+  // workflow 引用变化时让 banner 重新显示（避免用户关掉后改完又一直空着）
+  useEffect(() => {
+    setBannerDismissed(false);
+  }, [workflow]);
   const resetWorkflow = useAutodeployStore((s) => s.resetWorkflow);
 
   const screenToWorld = useCallback(
@@ -384,6 +397,40 @@ export function Canvas() {
       onContextMenu={onContextMenu}
       className="relative h-full w-full overflow-hidden bg-[#f5f7fa] select-none"
     >
+      {/* 校验错误 banner：画布不合法时顶部红条，列出前若干条错误。
+          关闭后只要 workflow 引用变化就重新显示。 */}
+      {validationErrors.length > 0 && !bannerDismissed && (
+        <div className="pointer-events-none absolute left-0 right-0 top-0 z-30 flex justify-center px-3 pt-2">
+          <div className="pointer-events-auto flex max-w-[640px] items-start gap-2 rounded-md border border-[#fbc4c4] bg-[#fef0f0] px-3 py-2 text-[12px] text-[#f56c6c] shadow-sm">
+            <AlertCircle className="mt-0.5 size-3.5 shrink-0" strokeWidth={2} />
+            <div className="min-w-0 flex-1">
+              <div className="font-medium">
+                工作流不完整（{validationErrors.length} 处问题）
+              </div>
+              <ul className="mt-1 list-disc space-y-0.5 pl-4 text-[11px] text-[#c45656]">
+                {validationErrors.slice(0, 4).map((e, i) => (
+                  <li key={i} className="leading-relaxed">
+                    {e.message}
+                  </li>
+                ))}
+                {validationErrors.length > 4 && (
+                  <li className="text-[#909399]">
+                    还有 {validationErrors.length - 4} 处…
+                  </li>
+                )}
+              </ul>
+            </div>
+            <button
+              onClick={() => setBannerDismissed(true)}
+              className="shrink-0 rounded p-0.5 text-[#c45656] transition-colors hover:bg-[#fde2e2]"
+              title="关闭（下次画布变更会再次出现）"
+            >
+              <X className="size-3.5" strokeWidth={2} />
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* dot grid */}
       <div
         className="pointer-events-none absolute inset-0"

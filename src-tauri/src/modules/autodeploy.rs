@@ -28,6 +28,7 @@ pub enum NodeCategory {
     Source,
     Process,
     Transfer,
+    Flow,
 }
 
 /// Inspector 字段类型
@@ -508,6 +509,18 @@ const RETRY: NodeType = NodeType {
     ],
 };
 
+/// 开始节点：0 input, 1 output。流程编排入口，画布有且仅有一个。
+const START: NodeType = NodeType {
+    id: "start",
+    category: NodeCategory::Flow,
+    label: "开始",
+    description: "工作流入口；画布有且仅有一个，删除后才能再加",
+    icon: "Play",
+    inputs: 0,
+    outputs: 1,
+    fields: &[],
+};
+
 /// 结束节点：1 input, 0 outputs。标记工作流结束（不强制早停）。
 const END: NodeType = NodeType {
     id: "end",
@@ -580,6 +593,7 @@ const BUILTIN_NODES: &[NodeType] = &[
     RETRY,
     END,
     NOTIFY,
+    START,
 ];
 
 // =============================================================================

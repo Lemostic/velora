@@ -56,3 +56,31 @@ export function topoSort(
   // 起点（roots）也是不可达的"无上游"，分开标记
   return { order, hasCycle, roots, unreachable };
 }
+
+/**
+ * 从指定起点沿连线 BFS，收集所有可达节点 id。
+ * 用来判断"是否每个节点都在 START 出发的路径上"。
+ */
+export function computeReachable(
+  startId: string,
+  connections: Connection[],
+): Set<string> {
+  const adj = new Map<string, string[]>();
+  for (const c of connections) {
+    const list = adj.get(c.fromNode) ?? [];
+    list.push(c.toNode);
+    adj.set(c.fromNode, list);
+  }
+  const reached = new Set<string>([startId]);
+  const queue = [startId];
+  while (queue.length) {
+    const id = queue.shift()!;
+    for (const next of adj.get(id) ?? []) {
+      if (!reached.has(next)) {
+        reached.add(next);
+        queue.push(next);
+      }
+    }
+  }
+  return reached;
+}

@@ -1,11 +1,16 @@
-// 顶部工具条 —— 工作流名 / 状态 / 保存 / 模板 / dry-run / run
+// 顶部工具条 —— 工作流名 / 校验 / 状态 / 暂存 / 模板 / dry-run / run
 //
 // 视觉：Element Plus 风格
 //   - 高 48px，bg-white，底部 1px border
-//   - 左侧：可编辑工作流名 + 状态徽章 + 计数
+//   - 左侧：可编辑工作流名 + 校验徽章 + 状态徽章 + 自动暂存时间
 //   - 右侧：模板、清空、保存、dry-run、run 按钮
+//
+// 校验（lib/validate.ts）：
+//   - 任何 errors > 0 → 校验徽章变红，run / dry-run / 保存到文件 按钮全部 disabled
+//   - 鼠标悬停 disabled 按钮显示错误清单 tooltip
 
 import {
+  AlertCircle,
   CheckCircle2,
   CircleDashed,
   CirclePlay,
@@ -17,10 +22,11 @@ import {
   Trash2,
   XCircle,
 } from "lucide-react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAutodeployStore } from "../store";
 import { BUILTIN_TEMPLATES } from "../lib/templates";
+import { validateWorkflow } from "../lib/validate";
 import { cn } from "@/lib/utils";
 
 interface Props {
@@ -31,11 +37,24 @@ interface Props {
 export function TopToolbar({ onRun, onDryRun }: Props) {
   const workflow = useAutodeployStore((s) => s.workflow);
   const runState = useAutodeployStore((s) => s.runState);
+  const lastSavedAt = useAutodeployStore((s) => s.lastSavedAt);
+  const nodeTypes = useAutodeployStore((s) => s.nodeTypes);
   const renameWorkflow = useAutodeployStore((s) => s.renameWorkflow);
   const applyTemplate = useAutodeployStore((s) => s.applyTemplate);
   const resetWorkflow = useAutodeployStore((s) => s.resetWorkflow);
   const nodeCount = workflow.nodes.length;
   const [name, setName] = useState(workflow.name);
+
+  // 校验
+  const errors = useMemo(
+    () => validateWorkflow(workflow, nodeTypes),
+    [workflow, nodeTypes],
+  );
+  const errorCount = errors.length;
+  const errorMessages = useMemo(
+    () => errors.map((e) => e.message).join("\n"),
+    [errors],
+  );
 
   return (
     <div className="flex h-12 shrink-0 items-center gap-2.5 border-b border-[#dcdfe6] bg-white px-3">
@@ -51,12 +70,21 @@ export function TopToolbar({ onRun, onDryRun }: Props) {
         className="h-7 max-w-[220px] rounded border border-transparent bg-transparent px-2 text-[13px] font-medium text-[#303133] outline-none transition-colors hover:border-[#dcdfe6] focus:border-[#409eff] focus:bg-white"
       />
 
-      {/* 状态徽章 */}
+      {/* 校验徽章 */}
+      <ValidationBadge
+        errorCount={errorCount}
+        message={errorCount > 0 ? errorMessages : "工作流结构完整"}
+      />
+
+      {/* 运行态徽章 */}
       <RunStateBadge state={runState} />
 
       <span className="font-mono text-[10px] text-[#c0c4cc]">
         {nodeCount} 节点 · {workflow.connections.length} 连线
       </span>
+
+      {/* 自动暂存时间 */}
+      <AutosaveIndicator ts={lastSavedAt} dirty={false} />
 
       <div className="flex-1" />
 
@@ -91,11 +119,16 @@ export function TopToolbar({ onRun, onDryRun }: Props) {
         清空
       </button>
 
-      {/* 保存 */}
+      {/* 保存到文件（不通过校验就 disable） */}
       <button
-        onClick={() => flash("已自动保存到 localStorage")}
-        className="inline-flex h-7 items-center gap-1 rounded border border-[#dcdfe6] bg-white px-2.5 text-[12px] text-[#606266] transition-colors hover:border-[#409eff]/40 hover:text-[#409eff]"
-        title="工作流自动保存到 localStorage"
+        onClick={() => void saveWorkflowToFile(workflow)}
+        disabled={errorCount > 0}
+        title={
+          errorCount > 0
+            ? `工作流不完整，无法保存：\n${errorMessages}`
+            : "导出工作流 JSON 到本地文件"
+        }
+        className="inline-flex h-7 items-center gap-1 rounded border border-[#dcdfe6] bg-white px-2.5 text-[12px] text-[#606266] transition-colors hover:border-[#409eff]/40 hover:text-[#409eff] disabled:cursor-not-allowed disabled:opacity-50"
       >
         <Save className="size-3.5" strokeWidth={1.75} />
         保存
@@ -104,9 +137,15 @@ export function TopToolbar({ onRun, onDryRun }: Props) {
       {/* dry-run */}
       <button
         onClick={onDryRun}
-        disabled={runState === "running" || nodeCount === 0}
+        disabled={
+          runState === "running" || nodeCount === 0 || errorCount > 0
+        }
+        title={
+          errorCount > 0
+            ? `工作流不完整：\n${errorMessages}`
+            : "只校验，不真正执行"
+        }
         className="inline-flex h-7 items-center gap-1 rounded border border-[#dcdfe6] bg-white px-2.5 text-[12px] text-[#606266] transition-colors hover:border-[#409eff]/40 hover:text-[#409eff] disabled:cursor-not-allowed disabled:opacity-50"
-        title="只校验，不真正执行"
       >
         <FlaskConical className="size-3.5" strokeWidth={1.75} />
         dry-run
@@ -115,7 +154,14 @@ export function TopToolbar({ onRun, onDryRun }: Props) {
       {/* run */}
       <button
         onClick={onRun}
-        disabled={runState === "running" || nodeCount === 0}
+        disabled={
+          runState === "running" || nodeCount === 0 || errorCount > 0
+        }
+        title={
+          errorCount > 0
+            ? `工作流不完整：\n${errorMessages}`
+            : undefined
+        }
         className="inline-flex h-7 items-center gap-1 rounded bg-[#409eff] px-3 text-[12px] font-medium text-white transition-colors hover:bg-[#337ecc] disabled:cursor-not-allowed disabled:opacity-50"
       >
         {runState === "running" ? (
@@ -126,6 +172,54 @@ export function TopToolbar({ onRun, onDryRun }: Props) {
         run
       </button>
     </div>
+  );
+}
+
+function ValidationBadge({
+  errorCount,
+  message,
+}: {
+  errorCount: number;
+  message: string;
+}) {
+  if (errorCount === 0) {
+    return (
+      <span
+        title={message}
+        className="inline-flex h-6 items-center gap-1 rounded-full bg-[#f0f9eb] px-2 text-[11px] font-medium text-[#67c23a]"
+      >
+        <CheckCircle2 className="size-3" strokeWidth={2} />
+        valid
+      </span>
+    );
+  }
+  return (
+    <span
+      title={message}
+      className="inline-flex h-6 max-w-[260px] cursor-help items-center gap-1 truncate rounded-full bg-[#fef0f0] px-2 text-[11px] font-medium text-[#f56c6c]"
+    >
+      <AlertCircle className="size-3 shrink-0" strokeWidth={2} />
+      <span className="truncate">{errorCount} 处问题</span>
+    </span>
+  );
+}
+
+function AutosaveIndicator({ ts }: { ts: number; dirty: boolean }) {
+  // 每 30s 强制刷新一次以更新 hh:mm:ss 显示
+  const [, force] = useState(0);
+  useState(() => {
+    const id = window.setInterval(() => force((n) => n + 1), 30_000);
+    return () => window.clearInterval(id);
+  });
+  const time = new Date(ts).toLocaleTimeString("zh-CN", { hour12: false });
+  return (
+    <span
+      className="hidden items-center gap-1 font-mono text-[10px] text-[#c0c4cc] sm:inline-flex"
+      title={`最近一次自动暂存时间（zustand persist middleware 每次画布变更都自动写 localStorage）`}
+    >
+      <Save className="size-2.5" strokeWidth={2} />
+      已暂存 {time}
+    </span>
   );
 }
 
@@ -239,8 +333,40 @@ function TemplateMenu({ onPick }: { onPick: (id: string) => void }) {
   );
 }
 
+// 把工作流 JSON 写到用户选的本地文件。先通过 Tauri dialog 让用户选路径，
+// 再用 plugin-fs 写入。不在 Tauri runtime（vite dev）就 fallback 到浏览器下载。
+async function saveWorkflowToFile(workflow: import("../types").Workflow) {
+  const json = JSON.stringify(workflow, null, 2);
+  const hasTauri =
+    typeof window !== "undefined" &&
+    typeof (window as unknown as { __TAURI_INTERNALS__?: unknown })
+      .__TAURI_INTERNALS__ !== "undefined";
+  if (hasTauri) {
+    const { save } = await import("@tauri-apps/plugin-dialog");
+    const { writeTextFile } = await import("@tauri-apps/plugin-fs");
+    const safeName =
+      workflow.name.replace(/[\\/:*?"<>|]/g, "_") || "workflow";
+    const target = await save({
+      title: "保存工作流",
+      defaultPath: `${safeName}.velora.json`,
+      filters: [{ name: "Velora workflow", extensions: ["json"] }],
+    });
+    if (!target) return;
+    await writeTextFile(target, json);
+    flash(`已保存到 ${target}`);
+  } else {
+    // vite dev 浏览器预览：触发下载
+    const blob = new Blob([json], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${workflow.name || "workflow"}.velora.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+}
+
 function flash(msg: string) {
-  // 简单反馈：title 闪烁 1.5s
   const orig = document.title;
   document.title = msg;
   window.setTimeout(() => {
