@@ -9,7 +9,6 @@
 
 import * as Icons from "lucide-react";
 import type { LucideIcon } from "lucide-react";
-import { useRef } from "react";
 import type { MouseEvent as ReactMouseEvent } from "react";
 import { useAutodeployStore } from "../store";
 import { portOffset } from "../lib/geometry";
@@ -63,12 +62,8 @@ interface PortProps {
   x: number;
   y: number;
   isHovered: boolean;
-  /** 通知 canvas 这条 port 起始了画线 */
+  /** 通知 canvas 这条 port 起始了画线（canvas 内部统一接管后续 mousemove / mouseup） */
   onConnectStart: (info: { fromNode: string; fromPort: number; fromSide: "input" | "output" }) => void;
-  /** 通知 canvas 鼠标移动（更新 pendingConn） */
-  onConnectMove: (screenX: number, screenY: number) => void;
-  /** 通知 canvas mouseup（完成画线） */
-  onConnectEnd: (screenX: number, screenY: number) => void;
 }
 
 function PortHandle({
@@ -79,50 +74,16 @@ function PortHandle({
   y,
   isHovered,
   onConnectStart,
-  onConnectMove,
-  onConnectEnd,
-}: PortProps) {
-  const ref = useRef<HTMLDivElement>(null);
-
-  // window native listener 只在 mousedown 那一次渲染里安装，但画布在拖拽中
-  // 会因 pendingConn / hoverPort 更新持续重渲染、不断换新的回调 props。
-  // 把最新回调存进 ref，listener 每次触发都经 ref 调用 —— 否则闭包会一直
-  // 调用 mousedown 时的旧回调（旧回调里 pendingConn 还是 null，虚线永不跟手、
-  // hit test 也永远拿不到最新节点数据）。
-  const latestRef = useRef({ onConnectMove, onConnectEnd });
-  latestRef.current = { onConnectMove, onConnectEnd };
-
+}: Omit<PortProps, "onConnectMove" | "onConnectEnd">) {
   return (
     <div
-      ref={ref}
       onMouseDown={(e) => {
         if (e.button !== 0) return;
         e.stopPropagation();
         e.preventDefault();
-        // 通知 canvas 起点（同步调用，走当前渲染的最新闭包）
+        // 通知 canvas 起点：canvas 内部装的那套 window listener 接管
+        // mousemove / mouseup / Esc。这里完全不装 listener，事件流唯一确定。
         onConnectStart({ fromNode: nodeId, fromPort: portIndex, fromSide: side });
-        // 同步装 native window listener（不进 useEffect 异步 commit 陷阱）
-        function onMove(ev: MouseEvent) {
-          latestRef.current.onConnectMove(ev.clientX, ev.clientY);
-        }
-        function onUp(ev: MouseEvent) {
-          window.removeEventListener("mousemove", onMove);
-          window.removeEventListener("mouseup", onUp);
-          window.removeEventListener("keydown", onKey);
-          latestRef.current.onConnectEnd(ev.clientX, ev.clientY);
-        }
-        function onKey(ev: KeyboardEvent) {
-          if (ev.key === "Escape") {
-            window.removeEventListener("mousemove", onMove);
-            window.removeEventListener("mouseup", onUp);
-            window.removeEventListener("keydown", onKey);
-            // ESC = 取消画线：给画布外的坐标，让 hit test 必然落空
-            latestRef.current.onConnectEnd(-9999, -9999);
-          }
-        }
-        window.addEventListener("mousemove", onMove);
-        window.addEventListener("mouseup", onUp);
-        window.addEventListener("keydown", onKey);
       }}
       className={cn(
         "absolute z-10 -translate-x-1/2 -translate-y-1/2 cursor-crosshair rounded-full border-2 border-white transition-all",
@@ -159,13 +120,9 @@ export function NodeCard({
   height,
   onMouseDown,
   onConnectStart,
-  onConnectMove,
-  onConnectEnd,
   hoveredPort,
 }: Props & {
   onConnectStart: PortProps["onConnectStart"];
-  onConnectMove: PortProps["onConnectMove"];
-  onConnectEnd: PortProps["onConnectEnd"];
 }) {
   const nodeTypes = useAutodeployStore((s) => s.nodeTypes);
   const def = nodeTypes.find((t) => t.id === node.type);
@@ -253,8 +210,6 @@ export function NodeCard({
               y={p.y}
               isHovered={hoveredPort?.side === "input" && hoveredPort.port === i}
               onConnectStart={onConnectStart}
-              onConnectMove={onConnectMove}
-              onConnectEnd={onConnectEnd}
             />
           );
         })}
@@ -272,8 +227,6 @@ export function NodeCard({
               y={p.y}
               isHovered={hoveredPort?.side === "output" && hoveredPort.port === i}
               onConnectStart={onConnectStart}
-              onConnectMove={onConnectMove}
-              onConnectEnd={onConnectEnd}
             />
           );
         })}

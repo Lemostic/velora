@@ -22,7 +22,7 @@ import {
   Trash2,
   XCircle,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAutodeployStore } from "../store";
 import { BUILTIN_TEMPLATES } from "../lib/templates";
@@ -37,7 +37,6 @@ interface Props {
 export function TopToolbar({ onRun, onDryRun }: Props) {
   const workflow = useAutodeployStore((s) => s.workflow);
   const runState = useAutodeployStore((s) => s.runState);
-  const lastSavedAt = useAutodeployStore((s) => s.lastSavedAt);
   const nodeTypes = useAutodeployStore((s) => s.nodeTypes);
   const renameWorkflow = useAutodeployStore((s) => s.renameWorkflow);
   const applyTemplate = useAutodeployStore((s) => s.applyTemplate);
@@ -55,6 +54,14 @@ export function TopToolbar({ onRun, onDryRun }: Props) {
     () => errors.map((e) => e.message).join("\n"),
     [errors],
   );
+
+  // 自动暂存时间戳 —— 纯组件本地 state（不要进 store，store 同步 setState
+  // 会与 zustand useSyncExternalStore 触发 React #185 无限渲染）。
+  // 每次 workflow 引用变化就刷新，组件级 setState 不会引发循环。
+  const [savedAt, setSavedAt] = useState(() => Date.now());
+  useEffect(() => {
+    setSavedAt(Date.now());
+  }, [workflow]);
 
   return (
     <div className="flex h-12 shrink-0 items-center gap-2.5 border-b border-[#dcdfe6] bg-white px-3">
@@ -84,7 +91,7 @@ export function TopToolbar({ onRun, onDryRun }: Props) {
       </span>
 
       {/* 自动暂存时间 */}
-      <AutosaveIndicator ts={lastSavedAt} dirty={false} />
+      <AutosaveIndicator ts={savedAt} />
 
       <div className="flex-1" />
 
@@ -204,13 +211,13 @@ function ValidationBadge({
   );
 }
 
-function AutosaveIndicator({ ts }: { ts: number; dirty: boolean }) {
+function AutosaveIndicator({ ts }: { ts: number }) {
   // 每 30s 强制刷新一次以更新 hh:mm:ss 显示
   const [, force] = useState(0);
-  useState(() => {
+  useEffect(() => {
     const id = window.setInterval(() => force((n) => n + 1), 30_000);
     return () => window.clearInterval(id);
-  });
+  }, []);
   const time = new Date(ts).toLocaleTimeString("zh-CN", { hour12: false });
   return (
     <span

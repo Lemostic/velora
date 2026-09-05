@@ -375,8 +375,6 @@ interface State {
   // 运行态（不持久化）
   runState: RunState;
   logs: LogEntry[];
-  // 自动暂存时间戳（不持久化，UI 显示用）
-  lastSavedAt: number;
 
   // 启动
   loadNodeTypes: () => Promise<void>;
@@ -435,7 +433,6 @@ export const useAutodeployStore = create<State>()(
       selectedNodeId: null,
       runState: "idle",
       logs: [],
-      lastSavedAt: Date.now(),
 
       loadNodeTypes: async () => {
         if (!hasTauri()) {
@@ -626,14 +623,3 @@ export const useSelectedNode = (): CanvasNode | null => {
     return s.workflow.nodes.find((n) => n.id === s.selectedNodeId) ?? null;
   });
 };
-
-// 订阅 workflow 变化 → 更新 lastSavedAt（zustand persist middleware 已经
-// 每次 setState 都会自动写 localStorage，这里只是把"已写时间"暴露给 UI 用）。
-// 用 workflow 引用比对过滤（zustand 默认 subscribe 不接 selector）。
-let prevWorkflowRef = useAutodeployStore.getState().workflow;
-useAutodeployStore.subscribe((s) => {
-  if (s.workflow !== prevWorkflowRef) {
-    prevWorkflowRef = s.workflow;
-    useAutodeployStore.setState({ lastSavedAt: Date.now() });
-  }
-});

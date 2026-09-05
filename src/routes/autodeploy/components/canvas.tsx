@@ -51,17 +51,11 @@ export function Canvas() {
     nodeOrigY?: number;
   } | null>(null);
 
-  // 端口按下时记下的起点端口（同步 ref）。
-  // PortHandle 的 mousemove / mouseup 走 window native listener，回调必须
-  // 能立刻读到最新状态，不能依赖 setState 的异步刷新，所以起点存 ref、
-  // 终点跟随用 setPendingConn 的 functional update（天然避开过期闭包）。
-  const connStartRef = useRef<{
-    fromNode: string;
-    fromPort: number;
-    fromSide: "input" | "output";
-  } | null>(null);
-
   const [pendingConn, setPendingConn] = useState<PendingConn | null>(null);
+  // pendingConn 的同步镜像：window listener 内 mousemove / mouseup 必须
+  // 立刻读到最新值（listener 闭包不依赖 React state 的异步刷新），所以同时
+  // 维护一份 ref；render 期间同步写，listener 永远拿到最新。
+  const pendingConnRef = useRef<PendingConn | null>(null);
   const [hoverPort, setHoverPort] = useState<{
     nodeId: string;
     port: number;
@@ -83,15 +77,40 @@ export function Canvas() {
   const addNode = useAutodeployStore((s) => s.addNode);
   const applyTemplate = useAutodeployStore((s) => s.applyTemplate);
 
+  // API 镜像 ref：window listener 只装一次（useEffect 依赖 []），但 listener
+  // 内部要调用的 setState / hitTestPort / addConnection / screenToWorld 每次
+  // 渲染都换新引用。把它们集中存进 ref，listener 永远通过 ref 拿最新——
+  // 既避免 useEffect 反复重装 listener 打断正在进行的拖拽，也避开"listener
+  // 闭包过期"的经典坑。
+  // 注：getScreenToWorld / getHitTestPort 字段在它们 useCallback 声明后
+  // 才补（见 line 175 附近）。
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const apiRef = useRef<any>(null);
+  apiRef.current = {
+    ...apiRef.current,
+    setViewport,
+    moveNode,
+    addConnection,
+    setPendingConn,
+    setHoverPort,
+  };
+  pendingConnRef.current = pendingConn;
+
   // 工作流完整性校验（与 top-toolbar 共用同一份逻辑）
   const validationErrors = useMemo(
     () => validateWorkflow(workflow, nodeTypes),
     [workflow, nodeTypes],
   );
   const [bannerDismissed, setBannerDismissed] = useState(false);
-  // workflow 引用变化时让 banner 重新显示（避免用户关掉后改完又一直空着）
+  // workflow 引用变化时让 banner 重新显示。用 ref 存"上一次真正处理过的
+  // workflow 引用"，避免 store 引用相同但触发 re-render 时 effect 误重跑
+  // 引发布局抖动（setState → re-render → effect 重跑 → ...）。
+  const lastSeenWfRef = useRef<typeof workflow>(workflow);
   useEffect(() => {
-    setBannerDismissed(false);
+    if (lastSeenWfRef.current !== workflow) {
+      lastSeenWfRef.current = workflow;
+      setBannerDismissed(false);
+    }
   }, [workflow]);
   const resetWorkflow = useAutodeployStore((s) => s.resetWorkflow);
 
@@ -145,6 +164,11 @@ export function Canvas() {
     [workflow.nodes, nodeTypes, screenToWorld, viewport],
   );
 
+  // 现在 screenToWorld / hitTestPort 已声明，把它们补进 apiRef（render 期
+  // 间同步写，listener 永远拿最新值）。
+  apiRef.current.getScreenToWorld = screenToWorld;
+  apiRef.current.getHitTestPort = hitTestPort;
+
   // 工具：端口 → 世界坐标
   function getPortWorld(
     nodeId: string,
@@ -162,40 +186,94 @@ export function Canvas() {
   }
 
   // ─────────────────────────────────────────────
-  // 画布 / 节点 / 平移 拖拽（用 mouse events）
+  // 画布 / 节点 / 平移 / 画线 —— 一个统一的 window listener
+  //
+  // 之前每个拖动源（画布 pan / 节点 / port）各装一套 window listener，
+  // 跨 listener 互踩导致"鼠标按下端口却拖动节点"、"port mousedown 进了
+  // 但 onConnectMove 永不触发"等诡异失败。统一在这里：
+  //   - mousedown 不在这里（mousedown 由各组件 React 合成事件响应）
+  //   - mousemove：先看 pendingConnRef.current（画线中）→ 否则看 dragRef（pan / node 拖动）
+  //   - mouseup：先看 pendingConnRef.current → 完成 addConnection 或清掉 → 否则 dragRef = null
+  //   - keydown：Esc 取消画线
+  // useEffect 依赖 []：listener 只装一次，所有 API 通过 apiRef / pendingConnRef
+  // 拿最新，绝不重装打断拖拽。
   // ─────────────────────────────────────────────
   useEffect(() => {
     function onMove(e: MouseEvent) {
+      const api = apiRef.current;
+      // 1) 画线中
+      const pc = pendingConnRef.current;
+      if (pc) {
+        const w = api.getScreenToWorld(e.clientX, e.clientY);
+        api.setPendingConn({ ...pc, x2: w.x, y2: w.y });
+        api.setHoverPort(api.getHitTestPort(e.clientX, e.clientY));
+        return;
+      }
+      // 2) pan / node 拖动
       const drag = dragRef.current;
       if (!drag) return;
       if (drag.kind === "pan") {
         const dx = e.clientX - drag.startScreenX;
         const dy = e.clientY - drag.startScreenY;
-        setViewport({
+        api.setViewport({
           x: (drag.panOrigX ?? 0) + dx,
           y: (drag.panOrigY ?? 0) + dy,
         });
       } else if (drag.kind === "node" && drag.nodeId) {
-        const w = screenToWorld(e.clientX, e.clientY);
-        const startW = screenToWorld(drag.startScreenX, drag.startScreenY);
-        moveNode(
+        const w = api.getScreenToWorld(e.clientX, e.clientY);
+        const startW = api.getScreenToWorld(
+          drag.startScreenX,
+          drag.startScreenY,
+        );
+        api.moveNode(
           drag.nodeId,
           (drag.nodeOrigX ?? 0) + (w.x - startW.x),
           (drag.nodeOrigY ?? 0) + (w.y - startW.y),
         );
       }
     }
-    function onUp() {
+    function onUp(e: MouseEvent) {
+      const api = apiRef.current;
+      // 1) 画线收尾
+      const pc = pendingConnRef.current;
+      if (pc) {
+        const target = api.getHitTestPort(e.clientX, e.clientY);
+        api.setPendingConn(null);
+        api.setHoverPort(null);
+        if (
+          target &&
+          target.nodeId !== pc.fromNode &&
+          target.side !== pc.fromSide
+        ) {
+          const fromIsOutput = pc.fromSide === "output";
+          api.addConnection(
+            fromIsOutput ? pc.fromNode : target.nodeId,
+            fromIsOutput ? pc.fromPort : target.port,
+            fromIsOutput ? target.nodeId : pc.fromNode,
+            fromIsOutput ? target.port : pc.fromPort,
+          );
+        }
+        return;
+      }
+      // 2) pan / node 收尾
       dragRef.current = null;
     }
-
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape" && pendingConnRef.current) {
+        pendingConnRef.current = null;
+        apiRef.current.setPendingConn(null);
+        apiRef.current.setHoverPort(null);
+      }
+    }
     window.addEventListener("mousemove", onMove);
     window.addEventListener("mouseup", onUp);
+    window.addEventListener("keydown", onKey);
     return () => {
       window.removeEventListener("mousemove", onMove);
       window.removeEventListener("mouseup", onUp);
+      window.removeEventListener("keydown", onKey);
     };
-  }, [screenToWorld, setViewport, moveNode]);
+  }, []);
 
   // 画布本身 mousedown：pan / 取消选中
   const onCanvasMouseDown = useCallback(
@@ -264,24 +342,22 @@ export function Canvas() {
   );
 
   // ─────────────────────────────────────────────
-  // 端口画连线：start → move → end
+  // 端口画连线：start → canvas 用 window listener 接管 move/end
+  //
+  // port 这里只负责：mousedown 时把起点写进 state（pendingConn）。
+  // 后续 mousemove / mouseup / Esc 全交给上面那个统一的 window listener，
+  // 不在这里装自己的 listener —— 避免双轨并行时序竞态。
   //
   // 注意不要用空依赖 useCallback 包 onConnectStart —— 那会把闭包里的
   // workflow（节点坐标）冻结在组件首帧（首帧画布往往是空的），getPortWorld
-  // 会永远返回 null，连线将完全无法开始。这里不 memo，让每次渲染都带
-  // 最新节点数据；React 在 mousedown 时调用的就是当前渲染的版本。
+  // 会永远返回 null，连线将完全无法开始。
   // ─────────────────────────────────────────────
   const onConnectStart = (
     info: { fromNode: string; fromPort: number; fromSide: "input" | "output" },
   ) => {
     const startW = getPortWorld(info.fromNode, info.fromPort, info.fromSide);
     if (!startW) return;
-    connStartRef.current = {
-      fromNode: info.fromNode,
-      fromPort: info.fromPort,
-      fromSide: info.fromSide,
-    };
-    setPendingConn({
+    const next: PendingConn = {
       fromNode: info.fromNode,
       fromPort: info.fromPort,
       fromSide: info.fromSide,
@@ -289,47 +365,10 @@ export function Canvas() {
       y1: startW.y,
       x2: startW.x,
       y2: startW.y,
-    });
+    };
+    pendingConnRef.current = next;
+    setPendingConn(next);
   };
-
-  // 端口：拖动中 —— 虚线终点跟手 + 目标端口 hover 高亮。
-  // 用 functional update 只改终点，不读 state，天然不受闭包过期影响。
-  const onConnectMove = useCallback(
-    (screenX: number, screenY: number) => {
-      const w = screenToWorld(screenX, screenY);
-      setPendingConn((prev) => (prev ? { ...prev, x2: w.x, y2: w.y } : prev));
-      setHoverPort(hitTestPort(screenX, screenY));
-    },
-    [screenToWorld, hitTestPort],
-  );
-
-  // 端口：mouseup —— hit test 目标端口，合法则成线（起点信息从 ref 同步读）
-  const onConnectEnd = useCallback(
-    (screenX: number, screenY: number) => {
-      const start = connStartRef.current;
-      // 拖拽结束：无论成败都清掉起点与虚线
-      connStartRef.current = null;
-      setPendingConn(null);
-      setHoverPort(null);
-
-      const target = hitTestPort(screenX, screenY);
-      if (
-        start &&
-        target &&
-        target.nodeId !== start.fromNode &&
-        target.side !== start.fromSide
-      ) {
-        const fromIsOutput = start.fromSide === "output";
-        addConnection(
-          fromIsOutput ? start.fromNode : target.nodeId,
-          fromIsOutput ? start.fromPort : target.port,
-          fromIsOutput ? target.nodeId : start.fromNode,
-          fromIsOutput ? target.port : start.fromPort,
-        );
-      }
-    },
-    [hitTestPort, addConnection],
-  );
 
   // 右键菜单
   const onContextMenu = useCallback(
@@ -484,8 +523,6 @@ export function Canvas() {
             selected={n.id === selectedNodeId}
             onMouseDown={(e) => onNodeMouseDown(e, n.id, n.x, n.y)}
             onConnectStart={onConnectStart}
-            onConnectMove={onConnectMove}
-            onConnectEnd={onConnectEnd}
             width={NODE_W}
             height={NODE_H}
             hoveredPort={
