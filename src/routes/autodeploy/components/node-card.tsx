@@ -131,8 +131,21 @@ function PortHandle({
           "scale-[1.4] border-[#409eff] bg-[#409eff] shadow-[0_0_0_4px_rgba(64,158,255,0.18)]",
       )}
       style={{ top: y, left: x }}
-      title={side === "input" ? `输入 ${portIndex + 1}` : `输出 ${portIndex + 1}`}
-    />
+    >
+      {/* 自定义 tooltip：port hover 时显示在 port 旁。不能用 HTML title，
+          WebView2 会把 title 渲染为 OS native tooltip window，浮在 web content
+          之上并拦截 mousedown，导致 port 完全点不动。 */}
+      {isHovered && (
+        <div
+          className={cn(
+            "pointer-events-none absolute z-20 whitespace-nowrap rounded bg-[#303133] px-1.5 py-0.5 text-[10px] text-white shadow-md",
+            side === "input" ? "left-full ml-2" : "right-full mr-2",
+          )}
+        >
+          {side === "input" ? `输入 ${portIndex + 1}` : `输出 ${portIndex + 1}`}
+        </div>
+      )}
+    </div>
   );
 }
 
