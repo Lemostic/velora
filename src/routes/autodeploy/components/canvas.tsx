@@ -101,17 +101,20 @@ export function Canvas() {
     () => validateWorkflow(workflow, nodeTypes),
     [workflow, nodeTypes],
   );
-  const [bannerDismissed, setBannerDismissed] = useState(false);
-  // workflow 引用变化时让 banner 重新显示。用 ref 存"上一次真正处理过的
-  // workflow 引用"，避免 store 引用相同但触发 re-render 时 effect 误重跑
-  // 引发布局抖动（setState → re-render → effect 重跑 → ...）。
-  const lastSeenWfRef = useRef<typeof workflow>(workflow);
-  useEffect(() => {
-    if (lastSeenWfRef.current !== workflow) {
-      lastSeenWfRef.current = workflow;
-      setBannerDismissed(false);
-    }
-  }, [workflow]);
+  // banner 显示状态：纯 derived（useMemo）+ 单一 useState 存用户 dismiss
+  // 时对应的 workflow 引用。**没有任何 useEffect 联动**，从根上消除
+  // React #185 风险（之前的 `useEffect([workflow]) → setBannerDismissed`
+  // 模式在 React 19 严格模式 + zustand useSyncExternalStore 下会循环）。
+  // 用户点 X → setDismissedForWf(workflow) 记下当前引用；workflow 引用
+  // 变化时 useMemo 自动重新判定 banner 是否该再次出现。
+  const [dismissedForWf, setDismissedForWf] = useState<typeof workflow | null>(
+    null,
+  );
+  const showBanner = useMemo(() => {
+    if (validationErrors.length === 0) return false;
+    if (dismissedForWf === workflow) return false;
+    return true;
+  }, [validationErrors, workflow, dismissedForWf]);
   const resetWorkflow = useAutodeployStore((s) => s.resetWorkflow);
 
   const screenToWorld = useCallback(
@@ -438,7 +441,7 @@ export function Canvas() {
     >
       {/* 校验错误 banner：画布不合法时顶部红条，列出前若干条错误。
           关闭后只要 workflow 引用变化就重新显示。 */}
-      {validationErrors.length > 0 && !bannerDismissed && (
+      {showBanner && (
         <div className="pointer-events-none absolute left-0 right-0 top-0 z-30 flex justify-center px-3 pt-2">
           <div className="pointer-events-auto flex max-w-[640px] items-start gap-2 rounded-md border border-[#fbc4c4] bg-[#fef0f0] px-3 py-2 text-[12px] text-[#f56c6c] shadow-sm">
             <AlertCircle className="mt-0.5 size-3.5 shrink-0" strokeWidth={2} />
@@ -460,7 +463,7 @@ export function Canvas() {
               </ul>
             </div>
             <button
-              onClick={() => setBannerDismissed(true)}
+              onClick={() => setDismissedForWf(workflow)}
               className="shrink-0 rounded p-0.5 text-[#c45656] transition-colors hover:bg-[#fde2e2]"
               title="关闭（下次画布变更会再次出现）"
             >

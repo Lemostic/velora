@@ -23,6 +23,7 @@ import {
   XCircle,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+// 保留 useEffect 导入：AutosaveIndicator 内部用它启动 setInterval（依赖 []）。
 import { motion, AnimatePresence } from "framer-motion";
 import { useAutodeployStore } from "../store";
 import { BUILTIN_TEMPLATES } from "../lib/templates";
@@ -55,13 +56,13 @@ export function TopToolbar({ onRun, onDryRun }: Props) {
     [errors],
   );
 
-  // 自动暂存时间戳 —— 纯组件本地 state（不要进 store，store 同步 setState
-  // 会与 zustand useSyncExternalStore 触发 React #185 无限渲染）。
-  // 每次 workflow 引用变化就刷新，组件级 setState 不会引发循环。
-  const [savedAt, setSavedAt] = useState(() => Date.now());
-  useEffect(() => {
-    setSavedAt(Date.now());
-  }, [workflow]);
+  // 自动暂存时间戳 —— 组件 mount 时记一次即可。
+  // 不再用 useEffect([workflow]) 跟手刷新 —— 那种"每次 store 变化就 setState"
+  // 模式在 React 19 严格模式 + zustand useSyncExternalStore 下会触发
+  // React #185（Maximum update depth exceeded）。autosave 本身由
+  // zustand persist middleware 每次 setState 自动写 localStorage 兜底，
+  // UI 显示的时间戳是次要信息，没必要实时跟手。
+  const [savedAt] = useState(() => Date.now());
 
   return (
     <div className="flex h-12 shrink-0 items-center gap-2.5 border-b border-[#dcdfe6] bg-white px-3">
