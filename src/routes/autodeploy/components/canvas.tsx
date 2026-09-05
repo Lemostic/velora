@@ -24,6 +24,18 @@ import { cn } from "@/lib/utils";
 const NODE_W = 240;
 const NODE_H = 96;
 
+// 拖拽中的待确认连线。除了虚线两端的世界坐标，还携带起点端口信息：
+// mouseup 时画布据此判断能否成线（不能同节点 / 不能同侧端口）。
+interface PendingConn {
+  fromNode: string;
+  fromPort: number;
+  fromSide: "input" | "output";
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+}
+
 export function Canvas() {
   const containerRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<{
@@ -37,12 +49,17 @@ export function Canvas() {
     nodeOrigY?: number;
   } | null>(null);
 
-  const [pendingConn, setPendingConn] = useState<{
-    x1: number;
-    y1: number;
-    x2: number;
-    y2: number;
+  // 端口按下时记下的起点端口（同步 ref）。
+  // PortHandle 的 mousemove / mouseup 走 window native listener，回调必须
+  // 能立刻读到最新状态，不能依赖 setState 的异步刷新，所以起点存 ref、
+  // 终点跟随用 setPendingConn 的 functional update（天然避开过期闭包）。
+  const connStartRef = useRef<{
+    fromNode: string;
+    fromPort: number;
+    fromSide: "input" | "output";
   } | null>(null);
+
+  const [pendingConn, setPendingConn] = useState<PendingConn | null>(null);
   const [hoverPort, setHoverPort] = useState<{
     nodeId: string;
     port: number;
@@ -83,7 +100,12 @@ export function Canvas() {
       sy: number,
     ): { nodeId: string; port: number; side: "input" | "output" } | null => {
       const w = screenToWorld(sx, sy);
-      const RADIUS_SQ = 16 * 16;
+      // 命中半径按"屏幕像素"恒定：用 HIT_RADIUS_PX（屏幕像素）/ zoom
+      // 转成世界单位作为半径，dx / dy 也保持世界单位，distSq 与 rSq 才是同单位。
+      // 给世界半径设上限 32，防止缩得太小（<~62%）时一个落点命中多个端口。
+      const HIT_RADIUS_PX = 20;
+      const radWorld = Math.min(HIT_RADIUS_PX / viewport.zoom, 32);
+      const rSq = radWorld * radWorld;
       for (let i = workflow.nodes.length - 1; i >= 0; i--) {
         const n = workflow.nodes[i];
         const def = nodeTypes.find((t) => t.id === n.type);
@@ -92,7 +114,7 @@ export function Canvas() {
           const off = portOffset(p, def.inputs, "input", NODE_W, NODE_H);
           const dx = n.x + off.x - w.x;
           const dy = n.y + off.y - w.y;
-          if (dx * dx + dy * dy < RADIUS_SQ) {
+          if (dx * dx + dy * dy < rSq) {
             return { nodeId: n.id, port: p, side: "input" };
           }
         }
@@ -100,14 +122,14 @@ export function Canvas() {
           const off = portOffset(p, def.outputs, "output", NODE_W, NODE_H);
           const dx = n.x + off.x - w.x;
           const dy = n.y + off.y - w.y;
-          if (dx * dx + dy * dy < RADIUS_SQ) {
+          if (dx * dx + dy * dy < rSq) {
             return { nodeId: n.id, port: p, side: "output" };
           }
         }
       }
       return null;
     },
-    [workflow.nodes, nodeTypes, screenToWorld],
+    [workflow.nodes, nodeTypes, screenToWorld, viewport],
   );
 
   // 工具：端口 → 世界坐标
@@ -228,81 +250,72 @@ export function Canvas() {
     [selectNode],
   );
 
-  // 端口：port 拖动时
+  // ─────────────────────────────────────────────
+  // 端口画连线：start → move → end
+  //
+  // 注意不要用空依赖 useCallback 包 onConnectStart —— 那会把闭包里的
+  // workflow（节点坐标）冻结在组件首帧（首帧画布往往是空的），getPortWorld
+  // 会永远返回 null，连线将完全无法开始。这里不 memo，让每次渲染都带
+  // 最新节点数据；React 在 mousedown 时调用的就是当前渲染的版本。
+  // ─────────────────────────────────────────────
+  const onConnectStart = (
+    info: { fromNode: string; fromPort: number; fromSide: "input" | "output" },
+  ) => {
+    const startW = getPortWorld(info.fromNode, info.fromPort, info.fromSide);
+    if (!startW) return;
+    connStartRef.current = {
+      fromNode: info.fromNode,
+      fromPort: info.fromPort,
+      fromSide: info.fromSide,
+    };
+    setPendingConn({
+      fromNode: info.fromNode,
+      fromPort: info.fromPort,
+      fromSide: info.fromSide,
+      x1: startW.x,
+      y1: startW.y,
+      x2: startW.x,
+      y2: startW.y,
+    });
+  };
+
+  // 端口：拖动中 —— 虚线终点跟手 + 目标端口 hover 高亮。
+  // 用 functional update 只改终点，不读 state，天然不受闭包过期影响。
   const onConnectMove = useCallback(
     (screenX: number, screenY: number) => {
-      // 查找当前 pendingConn 的起点
-      if (!pendingConn) return;
-      // pendingConn 的 (x1, y1) 是世界坐标，screenX/Y 需转世界
       const w = screenToWorld(screenX, screenY);
-      setPendingConn({ x1: pendingConn.x1, y1: pendingConn.y1, x2: w.x, y2: w.y });
-      const target = hitTestPort(screenX, screenY);
-      if (target) {
-        setHoverPort(target);
-      } else {
-        setHoverPort(null);
-      }
+      setPendingConn((prev) => (prev ? { ...prev, x2: w.x, y2: w.y } : prev));
+      setHoverPort(hitTestPort(screenX, screenY));
     },
-    [pendingConn, screenToWorld, hitTestPort],
+    [screenToWorld, hitTestPort],
   );
 
-  // 端口：port mouseup 时
+  // 端口：mouseup —— hit test 目标端口，合法则成线（起点信息从 ref 同步读）
   const onConnectEnd = useCallback(
     (screenX: number, screenY: number) => {
-      // 找到当前 pendingConn 的起点信息（通过 setState 不再能读，但 start info 在 ref 里）
-      // 改：从 pendingConn 反推起点不靠谱，hit test 起点时直接查 workflow
-      // 更简单：起点在 onConnectStart 时记下 ref
-      // 但 port 流程：start → move → end。我们没保留 from 信息在 canvas。
-      // 解决：port start 时 setPendingConn 包含 from 信息
-      // 重构 setPendingConn schema:
-      type Pending = {
-        fromNode: string;
-        fromPort: number;
-        fromSide: "input" | "output";
-        x1: number; y1: number; x2: number; y2: number;
-      } | null;
-      // 读 pendingConn via ref to get latest
-      const latest = pendingConnRef.current as Pending;
-      if (!latest) {
-        setPendingConn(null);
-        setHoverPort(null);
-        return;
-      }
-      const target = hitTestPort(screenX, screenY);
-      if (
-        target &&
-        target.nodeId !== latest.fromNode &&
-        target.side !== latest.fromSide
-      ) {
-        const fromIsOutput = latest.fromSide === "output";
-        addConnection(
-          fromIsOutput ? latest.fromNode : target.nodeId,
-          fromIsOutput ? latest.fromPort : target.port,
-          fromIsOutput ? target.nodeId : latest.fromNode,
-          fromIsOutput ? target.port : latest.fromPort,
-        );
-      }
+      const start = connStartRef.current;
+      // 拖拽结束：无论成败都清掉起点与虚线
+      connStartRef.current = null;
       setPendingConn(null);
       setHoverPort(null);
+
+      const target = hitTestPort(screenX, screenY);
+      if (
+        start &&
+        target &&
+        target.nodeId !== start.fromNode &&
+        target.side !== start.fromSide
+      ) {
+        const fromIsOutput = start.fromSide === "output";
+        addConnection(
+          fromIsOutput ? start.fromNode : target.nodeId,
+          fromIsOutput ? start.fromPort : target.port,
+          fromIsOutput ? target.nodeId : start.fromNode,
+          fromIsOutput ? target.port : start.fromPort,
+        );
+      }
     },
     [hitTestPort, addConnection],
-  );
-
-  // pendingConn 写到 ref（让 onConnectEnd 同步读）
-  const pendingConnRef = useRef(pendingConn);
-  useEffect(() => {
-    pendingConnRef.current = pendingConn;
-  }, [pendingConn]);
-
-  // 改 onConnectStart：让 pendingConn 同时存 from 信息
-  const onConnectStartV2 = useCallback(
-    (info: { fromNode: string; fromPort: number; fromSide: "input" | "output" }) => {
-      const startW = getPortWorld(info.fromNode, info.fromPort, info.fromSide);
-      if (!startW) return;
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      setPendingConn({ fromNode: info.fromNode, fromPort: info.fromPort, fromSide: info.fromSide, x1: startW.x, y1: startW.y, x2: startW.x, y2: startW.y } as any);
-    },
-    [],
   );
 
   // 右键菜单
@@ -422,8 +435,8 @@ export function Canvas() {
             key={n.id}
             node={n}
             selected={n.id === selectedNodeId}
-            onPointerDown={(e) => onNodeMouseDown(e, n.id, n.x, n.y)}
-            onConnectStart={onConnectStartV2}
+            onMouseDown={(e) => onNodeMouseDown(e, n.id, n.x, n.y)}
+            onConnectStart={onConnectStart}
             onConnectMove={onConnectMove}
             onConnectEnd={onConnectEnd}
             width={NODE_W}

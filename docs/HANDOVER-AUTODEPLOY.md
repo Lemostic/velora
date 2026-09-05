@@ -121,6 +121,20 @@ const onMouseDown = (e) => {
 
 **别再退回 onPointerDown**——Tauri WebView 在 macOS / Linux 表现不一，统一 mouse events 是跨平台最稳的。
 
+**还有两个隐藏坑（2026-09 修"节点连线连不上"时踩过，必读）：**
+
+1. **window listener 会吃到过期闭包**：listener 是 mousedown 那一次渲染里装的，
+   但拖拽中画布会因 `pendingConn` / `hoverPort` 更新持续重渲染、换掉回调 props。
+   如果 listener 直接调用当时的 props 回调，虚线永远不跟手、目标端口不高亮、
+   hit test 拿的是旧节点数据 → 表现为"连线连不上"。**修复模式**：listener 一律
+   经 `latestRef.current`（每次渲染更新的 ref）调最新回调，见 node-card.tsx 的
+   `PortHandle`。
+2. **不要在 `onConnectStart` 上用空依赖 `useCallback`**：那会把闭包里的
+   `workflow`（节点坐标）冻结在组件首帧。首帧画布通常是空的，`getPortWorld`
+   永远返回 null，连线压根起不来。需要读最新 state 的 mousedown 回调不要 memo，
+   见 canvas.tsx 的 `onConnectStart`（端点跟随用 `setPendingConn` functional
+   update、起点用同步 ref `connStartRef`，都不依赖闭包里的旧 state）。
+
 ---
 
 ## 7. 已知问题

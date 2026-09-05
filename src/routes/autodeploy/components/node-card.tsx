@@ -9,7 +9,7 @@
 
 import * as Icons from "lucide-react";
 import type { LucideIcon } from "lucide-react";
-import { useEffect, useRef } from "react";
+import { useRef } from "react";
 import type { MouseEvent as ReactMouseEvent } from "react";
 import { useAutodeployStore } from "../store";
 import { portOffset } from "../lib/geometry";
@@ -49,7 +49,7 @@ interface Props {
   selected: boolean;
   width: number;
   height: number;
-  onPointerDown: (e: ReactMouseEvent<HTMLDivElement>) => void;
+  onMouseDown: (e: ReactMouseEvent<HTMLDivElement>) => void;
   hoveredPort?: { port: number; side: "input" | "output" } | null;
 }
 
@@ -84,13 +84,13 @@ function PortHandle({
 }: PortProps) {
   const ref = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    // 清理：组件 unmount 时移除可能遗留的 listener
-    // （实际上 listener 在 finish 中已经 remove，这里只是兜底）
-    return () => {
-      // noop
-    };
-  }, []);
+  // window native listener 只在 mousedown 那一次渲染里安装，但画布在拖拽中
+  // 会因 pendingConn / hoverPort 更新持续重渲染、不断换新的回调 props。
+  // 把最新回调存进 ref，listener 每次触发都经 ref 调用 —— 否则闭包会一直
+  // 调用 mousedown 时的旧回调（旧回调里 pendingConn 还是 null，虚线永不跟手、
+  // hit test 也永远拿不到最新节点数据）。
+  const latestRef = useRef({ onConnectMove, onConnectEnd });
+  latestRef.current = { onConnectMove, onConnectEnd };
 
   return (
     <div
@@ -99,26 +99,25 @@ function PortHandle({
         if (e.button !== 0) return;
         e.stopPropagation();
         e.preventDefault();
-        // 通知 canvas 起点
+        // 通知 canvas 起点（同步调用，走当前渲染的最新闭包）
         onConnectStart({ fromNode: nodeId, fromPort: portIndex, fromSide: side });
-        // 同步装 native window listener（不进 useEffect 异步）
+        // 同步装 native window listener（不进 useEffect 异步 commit 陷阱）
         function onMove(ev: MouseEvent) {
-          onConnectMove(ev.clientX, ev.clientY);
+          latestRef.current.onConnectMove(ev.clientX, ev.clientY);
         }
         function onUp(ev: MouseEvent) {
           window.removeEventListener("mousemove", onMove);
           window.removeEventListener("mouseup", onUp);
           window.removeEventListener("keydown", onKey);
-          onConnectEnd(ev.clientX, ev.clientY);
+          latestRef.current.onConnectEnd(ev.clientX, ev.clientY);
         }
         function onKey(ev: KeyboardEvent) {
           if (ev.key === "Escape") {
             window.removeEventListener("mousemove", onMove);
             window.removeEventListener("mouseup", onUp);
             window.removeEventListener("keydown", onKey);
-            // ESC = 取消：把鼠标移出任何 port 范围之外（不在画布上）就不会创建
-            // 简单起见：给一个明显在画布外的坐标让 hit test 失败
-            onConnectEnd(-9999, -9999);
+            // ESC = 取消画线：给画布外的坐标，让 hit test 必然落空
+            latestRef.current.onConnectEnd(-9999, -9999);
           }
         }
         window.addEventListener("mousemove", onMove);
@@ -127,9 +126,9 @@ function PortHandle({
       }}
       className={cn(
         "absolute z-10 -translate-x-1/2 -translate-y-1/2 cursor-crosshair rounded-full border-2 border-white transition-all",
-        "size-2.5 bg-[#c0c4cc] hover:scale-[1.6] hover:border-[#409eff] hover:bg-[#409eff]",
+        "size-3.5 bg-[#c0c4cc] hover:scale-[1.3] hover:border-[#409eff] hover:bg-[#409eff]",
         isHovered &&
-          "scale-[1.8] border-[#409eff] bg-[#409eff] shadow-[0_0_0_4px_rgba(64,158,255,0.18)]",
+          "scale-[1.4] border-[#409eff] bg-[#409eff] shadow-[0_0_0_4px_rgba(64,158,255,0.18)]",
       )}
       style={{ top: y, left: x }}
       title={side === "input" ? `输入 ${portIndex + 1}` : `输出 ${portIndex + 1}`}
@@ -145,7 +144,7 @@ export function NodeCard({
   selected,
   width,
   height,
-  onPointerDown,
+  onMouseDown,
   onConnectStart,
   onConnectMove,
   onConnectEnd,
@@ -171,7 +170,7 @@ export function NodeCard({
 
   return (
     <div
-      onMouseDown={onPointerDown}
+      onMouseDown={onMouseDown}
       className={cn(
         "absolute select-none rounded-md border bg-white shadow-sm transition-shadow",
         "border-[#dcdfe6] hover:shadow-md",
