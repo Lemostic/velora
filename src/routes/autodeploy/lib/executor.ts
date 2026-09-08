@@ -16,6 +16,7 @@ import { invoke } from "@tauri-apps/api/core";
 import type { ExecuteResult } from "../types";
 import { topoSort } from "./topology";
 import { useAutodeployStore } from "../store";
+import { buildInputs } from "./inputs";
 
 interface RunOptions {
   dryRun: boolean;
@@ -53,8 +54,17 @@ export async function runWorkflow(opts: RunOptions): Promise<void> {
     const n = workflow.nodes.find((x) => x.id === id)!;
     const def = nodeTypes.find((t) => t.id === n.type);
     if (!def) continue;
+    const inheritsSshSession = hasSshSessionAncestor(n.id, workflow);
     const missing = def.fields
-      .filter((f) => f.required && !n.params[f.name])
+      .filter(
+        (f) =>
+          f.required &&
+          !n.params[f.name] &&
+          !(
+            inheritsSshSession &&
+            ["host", "user", "auth", "secret"].includes(f.name)
+          ),
+      )
       .map((f) => f.label);
     if (missing.length > 0) {
       log(
@@ -88,6 +98,10 @@ export async function runWorkflow(opts: RunOptions): Promise<void> {
   // 节点本身会"虚拟执行"——我们只标记 status，然后按连接分发到 success/failure output。
   const executed = new Set<string>();
   const terminated = new Set<string>(); // 通过 end 节点终止的路径
+  // 记录每个节点最新的 output，供下游节点当作 inputs 消费。
+  // 之所以用局部 Map 而不是写回 store：workflow 是开场快照，store 里的
+  // nodes 引用不会自动同步到这里。
+  const outputsByNode = new Map<string, unknown>();
 
   for (const id of order) {
     if (executed.has(id)) continue;
@@ -196,6 +210,16 @@ export async function runWorkflow(opts: RunOptions): Promise<void> {
       continue;
     }
 
+    // ─── 配置位：start ───
+    // 开始节点只是流程入口标记，不参与具体执行；后端也按配置位处理，
+    // 这里短路掉 invoke 调用，避免落进"未知节点类型"分支。
+    if (n.type === "start") {
+      log("info", "工作流起点", n.id);
+      setNodeStatus(n.id, "success", "起点");
+      executed.add(id);
+      continue;
+    }
+
     // ─── 控制流：notify ───
     if (n.type === "notify") {
       log("info", "发送系统通知", n.id);
@@ -226,22 +250,7 @@ export async function runWorkflow(opts: RunOptions): Promise<void> {
     log("info", `执行 ${def?.label ?? n.type}（${n.type}）`, n.id);
     setNodeStatus(n.id, "running");
 
-    const inputs: unknown[] = [];
-    for (const c of workflow.connections) {
-      if (c.toNode === n.id) {
-        // 取上游 output
-        const upstream = workflow.nodes.find((x) => x.id === c.fromNode);
-        if (upstream && executed.has(upstream.id)) {
-          // 从上游 output 提取 inputs
-          // 上游 output 中可能含 path 字段
-          inputs.push(
-            upstream.message?.includes("✓")
-              ? { path: "" } // 占位
-              : { path: "" },
-          );
-        }
-      }
-    }
+    const inputs = buildInputs(n.id, workflow.connections, executed, outputsByNode, workflow.nodes);
 
     try {
       const req = {
@@ -254,6 +263,7 @@ export async function runWorkflow(opts: RunOptions): Promise<void> {
       if (result.ok) {
         log("ok", result.message, n.id);
         setNodeStatus(n.id, "success", result.message);
+        outputsByNode.set(n.id, result.output);
       } else {
         // 失败：先检查有没有 retry 上游（这里简化为标 error 不重试，因为需要二次遍历）
         log("error", result.message, n.id);
@@ -261,6 +271,7 @@ export async function runWorkflow(opts: RunOptions): Promise<void> {
         for (const later of order.slice(order.indexOf(id) + 1)) {
           if (!terminated.has(later)) setNodeStatus(later, "skipped", "因上游失败而跳过");
         }
+        await closeSessionHandles(outputsByNode);
         setRunState("error");
         log("error", "工作流执行失败");
         return;
@@ -269,6 +280,7 @@ export async function runWorkflow(opts: RunOptions): Promise<void> {
       const msg = String(e);
       log("error", `调用失败：${msg}`, n.id);
       setNodeStatus(n.id, "error", msg);
+      await closeSessionHandles(outputsByNode);
       setRunState("error");
       return;
     }
@@ -276,7 +288,45 @@ export async function runWorkflow(opts: RunOptions): Promise<void> {
   }
 
   log("ok", "工作流执行完成");
+  await closeSessionHandles(outputsByNode);
   setRunState("success");
+}
+
+function hasSshSessionAncestor(
+  nodeId: string,
+  workflow: { nodes: ReadonlyArray<{ id: string; type: string }>; connections: ReadonlyArray<{ fromNode: string; toNode: string }> },
+): boolean {
+  const byId = new Map(workflow.nodes.map((node) => [node.id, node]));
+  const pending = workflow.connections
+    .filter((connection) => connection.toNode === nodeId)
+    .map((connection) => connection.fromNode);
+  const visited = new Set<string>();
+  while (pending.length > 0) {
+    const current = pending.pop()!;
+    if (visited.has(current)) continue;
+    visited.add(current);
+    if (byId.get(current)?.type === "ssh_session") return true;
+    for (const connection of workflow.connections) {
+      if (connection.toNode === current) pending.push(connection.fromNode);
+    }
+  }
+  return false;
+}
+
+/** 释放本次运行创建的 SSH 会话，避免凭据和连接长期留在后端内存。 */
+async function closeSessionHandles(outputs: ReadonlyMap<string, unknown>): Promise<void> {
+  const ids = new Set<string>();
+  for (const output of outputs.values()) {
+    if (!output || typeof output !== "object") continue;
+    const sessionId = (output as { sessionId?: unknown }).sessionId;
+    if (typeof sessionId === "string" && sessionId) ids.add(sessionId);
+  }
+  if (ids.size === 0) return;
+  try {
+    await invoke("sftp_close_sessions", { sessionIds: [...ids] });
+  } catch {
+    // 浏览器预览模式没有 Tauri command；不影响工作流结果。
+  }
 }
 
 function log(level: "info" | "ok" | "warn" | "error", message: string, nodeId?: string) {

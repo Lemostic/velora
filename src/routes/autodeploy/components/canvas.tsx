@@ -11,20 +11,18 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { MouseEvent as ReactMouseEvent } from "react";
-import * as Icons from "lucide-react";
-import { AlertCircle, X } from "lucide-react";
-import type { LucideIcon } from "lucide-react";
+import { AlertCircle, Trash2, X } from "lucide-react";
 import { useAutodeployStore } from "../store";
 import { NodeCard } from "./node-card";
 import { ConnectionLine, PendingConnection } from "./connection-line";
 import { portOffset } from "../lib/geometry";
-import { BUILTIN_TEMPLATES } from "../lib/templates";
 import { validateWorkflow } from "../lib/validate";
-import type { NodeType } from "../types";
 import { cn } from "@/lib/utils";
 
-const NODE_W = 240;
-const NODE_H = 96;
+// 单节点尺寸（世界坐标）。压到 168×56 让 4-5 个节点能并排成行
+// （典型画布宽 ~870px：1400 - 240 库 - 288 Inspector），整体不挤。
+const NODE_W = 168;
+const NODE_H = 56;
 
 // 拖拽中的待确认连线。除了虚线两端的世界坐标，还携带起点端口信息：
 // mouseup 时画布据此判断能否成线（不能同节点 / 不能同侧端口）。
@@ -65,17 +63,24 @@ export function Canvas() {
     x: number;
     y: number;
   } | null>(null);
+  // 节点级右键菜单：单独存 target + 位置。Canvas 拥有这个 state，菜单作为
+  // Canvas div 的直接子元素渲染（Canvas div 本身没有 transform），用
+  // position:fixed 锚定到视口，杜绝世界层 transform 把菜单困在画布里。
+  const [nodeMenu, setNodeMenu] = useState<{
+    nodeId: string;
+    x: number;
+    y: number;
+  } | null>(null);
 
   const workflow = useAutodeployStore((s) => s.workflow);
   const viewport = useAutodeployStore((s) => s.viewport);
   const selectedNodeId = useAutodeployStore((s) => s.selectedNodeId);
   const nodeTypes = useAutodeployStore((s) => s.nodeTypes);
+  const removeNode = useAutodeployStore((s) => s.removeNode);
   const setViewport = useAutodeployStore((s) => s.setViewport);
   const moveNode = useAutodeployStore((s) => s.moveNode);
   const selectNode = useAutodeployStore((s) => s.selectNode);
   const addConnection = useAutodeployStore((s) => s.addConnection);
-  const addNode = useAutodeployStore((s) => s.addNode);
-  const applyTemplate = useAutodeployStore((s) => s.applyTemplate);
 
   // API 镜像 ref：window listener 只装一次（useEffect 依赖 []），但 listener
   // 内部要调用的 setState / hitTestPort / addConnection / screenToWorld 每次
@@ -115,6 +120,42 @@ export function Canvas() {
     if (dismissedForWf === workflow) return false;
     return true;
   }, [validationErrors, workflow, dismissedForWf]);
+
+  // 用虚线框标出 SSH 会话覆盖的远端执行域。它只是画布上的视觉分组，
+  // 真正的复用关系仍由 sessionId 传递保证；因此移动节点不会改变执行语义。
+  const sessionScopes = useMemo(() => {
+    const scopes: Array<{ id: string; label: string; x: number; y: number; width: number; height: number }> = [];
+    for (const session of workflow.nodes.filter((node) => node.type === "ssh_session")) {
+      const members = new Set<string>([session.id]);
+      const pending = [session.id];
+      while (pending.length > 0) {
+        const current = pending.pop()!;
+        for (const connection of workflow.connections) {
+          if (connection.fromNode !== current) continue;
+          const target = workflow.nodes.find((node) => node.id === connection.toNode);
+          if (!target || members.has(target.id)) continue;
+          if (target.type.startsWith("remote_") || target.type.startsWith("sftp_")) {
+            members.add(target.id);
+            pending.push(target.id);
+          }
+        }
+      }
+      const nodes = workflow.nodes.filter((node) => members.has(node.id));
+      const minX = Math.min(...nodes.map((node) => node.x));
+      const minY = Math.min(...nodes.map((node) => node.y));
+      const maxX = Math.max(...nodes.map((node) => node.x + NODE_W));
+      const maxY = Math.max(...nodes.map((node) => node.y + NODE_H));
+      scopes.push({
+        id: session.id,
+        label: `SSH 会话域 · ${session.params.host || "未配置服务器"}`,
+        x: minX - 18,
+        y: minY - 28,
+        width: maxX - minX + 36,
+        height: maxY - minY + 46,
+      });
+    }
+    return scopes;
+  }, [workflow]);
   const resetWorkflow = useAutodeployStore((s) => s.resetWorkflow);
 
   const screenToWorld = useCallback(
@@ -293,6 +334,7 @@ export function Canvas() {
       } else if (e.button === 0) {
         selectNode(null);
         setContextMenu(null);
+        setNodeMenu(null);
       }
     },
     [viewport, selectNode],
@@ -339,6 +381,7 @@ export function Canvas() {
         nodeOrigY: nodeY,
       };
       selectNode(nodeId);
+      setNodeMenu(null);
       e.preventDefault();
     },
     [selectNode],
@@ -383,16 +426,37 @@ export function Canvas() {
     [],
   );
 
+  // 节点右键：节点卡回调到这里。立刻关闭画布右键菜单，避免两份同时存在。
+  const onNodeContextMenuAt = useCallback(
+    (nodeId: string, clientX: number, clientY: number) => {
+      setContextMenu(null);
+      setNodeMenu({ nodeId, x: clientX, y: clientY });
+    },
+    [],
+  );
+
+  const onDeleteNode = useCallback(() => {
+    if (!nodeMenu) return;
+    removeNode(nodeMenu.nodeId);
+    setNodeMenu(null);
+  }, [nodeMenu, removeNode]);
+
   useEffect(() => {
-    if (!contextMenu) return;
+    if (!contextMenu && !nodeMenu) return;
     function onDocClick(e: MouseEvent) {
       const target = e.target as HTMLElement;
       if (!target.closest("[data-context-menu]")) {
         setContextMenu(null);
       }
+      if (!target.closest("[data-node-context-menu]")) {
+        setNodeMenu(null);
+      }
     }
     function onEsc(e: KeyboardEvent) {
-      if (e.key === "Escape") setContextMenu(null);
+      if (e.key === "Escape") {
+        setContextMenu(null);
+        setNodeMenu(null);
+      }
     }
     document.addEventListener("mousedown", onDocClick);
     document.addEventListener("keydown", onEsc);
@@ -400,34 +464,11 @@ export function Canvas() {
       document.removeEventListener("mousedown", onDocClick);
       document.removeEventListener("keydown", onEsc);
     };
-  }, [contextMenu]);
+  }, [contextMenu, nodeMenu]);
 
-  const onAddNodeAtMenu = (type: string) => {
-    if (!contextMenu) return;
-    const rect = containerRef.current?.getBoundingClientRect();
-    if (!rect) return;
-    const w = screenToWorld(contextMenu.x, contextMenu.y);
-    addNode(type, w.x - NODE_W / 2, w.y - NODE_H / 2);
-    setContextMenu(null);
-  };
-  const onApplyTemplateFromMenu = (id: string) => {
-    if (
-      workflow.nodes.length > 0 &&
-      !window.confirm("加载模板会覆盖当前画布，继续？")
-    ) {
-      setContextMenu(null);
-      return;
-    }
-    applyTemplate(id);
-    setContextMenu(null);
-  };
   const onClearFromMenu = () => {
     if (workflow.nodes.length === 0) return;
     if (window.confirm("清空当前画布？")) resetWorkflow();
-    setContextMenu(null);
-  };
-  const onZoomTo = (z: number) => {
-    setViewport({ zoom: z, x: 0, y: 0 });
     setContextMenu(null);
   };
 
@@ -492,13 +533,34 @@ export function Canvas() {
           transform: `translate(${viewport.x}px, ${viewport.y}px) scale(${viewport.zoom})`,
         }}
       >
+        {sessionScopes.map((scope) => (
+          <div
+            key={scope.id}
+            className="pointer-events-none absolute rounded-lg border border-dashed border-[#e6a23c]/70 bg-[#fdf6ec]/35"
+            style={{
+              left: scope.x,
+              top: scope.y,
+              width: scope.width,
+              height: scope.height,
+            }}
+          >
+            <span className="absolute -top-5 left-2 rounded bg-[#fdf6ec] px-1.5 py-0.5 text-[10px] font-medium text-[#b88230]">
+              {scope.label}
+            </span>
+          </div>
+        ))}
         <svg
           className="pointer-events-none absolute overflow-visible"
           style={{
-            left: -10000,
-            top: -10000,
-            width: 20000,
-            height: 20000,
+            // SVG 用户坐标系 = 世界坐标系：path d 直接用世界坐标。
+            // left/top 不能给负偏移，否则 path 会渲染在远离节点的位置（屏幕外），
+            // 导致"线拖不出来 / 节点都是孤立的"bug。
+            // 把 SVG 盒子做大一点（200000）以覆盖 viewport 大幅 pan 后的世界范围；
+            // CSS overflow-visible 让超出盒子边界的 path 也照样渲染。
+            left: 0,
+            top: 0,
+            width: 200000,
+            height: 200000,
           }}
         >
           {workflow.connections.map((c) => (
@@ -526,6 +588,7 @@ export function Canvas() {
             selected={n.id === selectedNodeId}
             onMouseDown={(e) => onNodeMouseDown(e, n.id, n.x, n.y)}
             onConnectStart={onConnectStart}
+            onContextMenuAt={onNodeContextMenuAt}
             width={NODE_W}
             height={NODE_H}
             hoveredPort={
@@ -548,193 +611,102 @@ export function Canvas() {
           <div className="rounded-md border border-dashed border-[#dcdfe6] bg-white/60 px-8 py-5 text-center">
             <div className="text-[14px] font-medium text-[#606266]">空白画布</div>
             <div className="mt-1.5 text-[12px] text-[#909399]">
-              从左侧节点库拖拽，或在画布上右键新建
+              从左侧节点库拖拽到画布创建节点
             </div>
           </div>
         </div>
       )}
 
-      {/* 右键菜单 */}
+      {/* 右键菜单（画布空白处）—— 只保留"清空画布"一个选项 */}
       {contextMenu && (
         <ContextMenu
           x={contextMenu.x}
           y={contextMenu.y}
-          nodeTypes={nodeTypes}
           hasNodes={workflow.nodes.length > 0}
-          onAddNode={onAddNodeAtMenu}
-          onApplyTemplate={onApplyTemplateFromMenu}
           onClear={onClearFromMenu}
-          onZoomTo={onZoomTo}
         />
       )}
+
+      {/* 节点右键菜单 —— 只保留"删除节点"一个选项
+          直接渲染在 canvas div 下（canvas 没有 transform），position:fixed
+          自然锚定到视口；与画布空白右键菜单并存但互斥（同时只有一个）。 */}
+      {nodeMenu && <NodeContextMenu menu={nodeMenu} onDelete={onDeleteNode} />}
     </div>
   );
 }
 
 // ─────────────────────────────────────────────
-// ContextMenu（保持原样）
+// ContextMenu（画布右键菜单）—— 只保留"清空画布"
 // ─────────────────────────────────────────────
 interface ContextMenuProps {
   x: number;
   y: number;
-  nodeTypes: NodeType[];
   hasNodes: boolean;
-  onAddNode: (type: string) => void;
-  onApplyTemplate: (id: string) => void;
   onClear: () => void;
-  onZoomTo: (z: number) => void;
 }
 
 function ContextMenu({
   x,
   y,
-  nodeTypes,
   hasNodes,
-  onAddNode,
-  onApplyTemplate,
   onClear,
-  onZoomTo,
 }: ContextMenuProps) {
-  const MENU_W = 220;
-  const MENU_MAX_H = 400;
+  const MENU_W = 160;
   const adjustedX = Math.min(x, window.innerWidth - MENU_W - 8);
-  const adjustedY = Math.min(y, window.innerHeight - MENU_MAX_H - 8);
-
-  const byCategory = (() => {
-    const map: Record<string, NodeType[]> = { source: [], process: [], transfer: [] };
-    for (const t of nodeTypes) map[t.category].push(t);
-    return map;
-  })();
+  const adjustedY = Math.min(y, window.innerHeight - 48 - 8);
 
   return (
     <div
       data-context-menu
-      className="fixed z-50 w-[220px] overflow-hidden rounded-md border border-[#dcdfe6] bg-white shadow-lg"
-      style={{ left: adjustedX, top: adjustedY }}
+      className="fixed z-50 overflow-hidden rounded-md border border-[#dcdfe6] bg-white shadow-lg"
+      style={{ left: adjustedX, top: adjustedY, width: MENU_W }}
     >
-      <MenuLabel>新建节点</MenuLabel>
-      {(Object.keys(byCategory) as Array<"source" | "process" | "transfer">).map(
-        (cat) => {
-          if (byCategory[cat].length === 0) return null;
-          const label =
-            cat === "source"
-              ? "SOURCES"
-              : cat === "process"
-                ? "PROCESS"
-                : "TRANSFER";
-          return (
-            <div key={cat}>
-              <SubLabel>{label}</SubLabel>
-              {byCategory[cat].map((t) => {
-                const Icon =
-                  (Icons as unknown as Record<string, LucideIcon>)[t.icon] ||
-                  Icons.Circle;
-                return (
-                  <MenuItem
-                    key={t.id}
-                    icon={Icon}
-                    label={t.label}
-                    onClick={() => onAddNode(t.id)}
-                  />
-                );
-              })}
-            </div>
-          );
-        },
-      )}
-
-      <Divider />
-
-      <MenuLabel>模板</MenuLabel>
-      {BUILTIN_TEMPLATES.map((t) => (
-        <MenuItem
-          key={t.id}
-          icon={Icons.FilePlus2}
-          label={t.name}
-          onClick={() => onApplyTemplate(t.id)}
-        />
-      ))}
-
-      <Divider />
-
-      <MenuLabel>视图</MenuLabel>
-      <MenuItem
-        icon={Icons.ZoomIn}
-        label="放大 (125%)"
-        onClick={() => onZoomTo(1.25)}
-      />
-      <MenuItem
-        icon={Icons.ZoomIn}
-        label="缩放至 100%"
-        onClick={() => onZoomTo(1)}
-      />
-      <MenuItem
-        icon={Icons.ZoomOut}
-        label="缩小 (75%)"
-        onClick={() => onZoomTo(0.75)}
-      />
-      <MenuItem
-        icon={Icons.Maximize2}
-        label="缩放至 50%"
-        onClick={() => onZoomTo(0.5)}
-      />
-
-      <Divider />
-
-      <MenuItem
-        icon={Icons.Trash2}
-        label="清空画布"
-        danger
+      <button
         disabled={!hasNodes}
         onClick={onClear}
-      />
+        className={cn(
+          "flex w-full items-center gap-2 px-3 py-2 text-left text-[12px] transition-colors",
+          "text-[#f56c6c] hover:bg-[#fef0f0]",
+          !hasNodes && "cursor-not-allowed opacity-50",
+        )}
+      >
+        <Trash2 className="size-3.5 shrink-0" strokeWidth={1.75} />
+        <span className="flex-1">清空画布</span>
+      </button>
     </div>
   );
 }
 
-function MenuLabel({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="border-b border-[#ebeef5] bg-[#f5f7fa] px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.1em] text-[#909399]">
-      {children}
-    </div>
-  );
+// ─────────────────────────────────────────────
+// NodeContextMenu（节点右键菜单）—— 只保留"删除节点"
+// ─────────────────────────────────────────────
+interface NodeContextMenuProps {
+  menu: { nodeId: string; x: number; y: number };
+  onDelete: () => void;
 }
 
-function SubLabel({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="px-3 pb-0.5 pt-1.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-[#c0c4cc]">
-      {children}
-    </div>
-  );
-}
+function NodeContextMenu({ menu, onDelete }: NodeContextMenuProps) {
+  const MENU_W = 160;
+  // 视口边界裁剪：菜单位于 canvas div 内（无 transform 祖先），position:fixed
+  // 自然锚定视口，这里只做边界保护。
+  const left = Math.max(8, Math.min(menu.x, window.innerWidth - MENU_W - 8));
+  const top = Math.max(8, Math.min(menu.y, window.innerHeight - 36 - 8));
 
-interface MenuItemProps {
-  icon: LucideIcon;
-  label: string;
-  onClick: () => void;
-  danger?: boolean;
-  disabled?: boolean;
-}
-
-function MenuItem({ icon: Icon, label, onClick, danger, disabled }: MenuItemProps) {
   return (
-    <button
-      disabled={disabled}
-      onClick={onClick}
-      className={cn(
-        "flex w-full items-center gap-2 px-3 py-1.5 text-left text-[12px] transition-colors",
-        danger
-          ? "text-[#f56c6c] hover:bg-[#fef0f0]"
-          : "text-[#303133] hover:bg-[#ecf5ff] hover:text-[#409eff]",
-        disabled && "cursor-not-allowed opacity-50",
-      )}
+    <div
+      data-node-context-menu
+      className="fixed z-50 overflow-hidden rounded-md border border-[#dcdfe6] bg-white shadow-lg"
+      style={{ left, top, width: MENU_W }}
     >
-      <Icon className="size-3.5 shrink-0" strokeWidth={1.75} />
-      <span className="flex-1 truncate">{label}</span>
-    </button>
+      <button
+        type="button"
+        onMouseDown={(e) => e.stopPropagation()}
+        onClick={onDelete}
+        className="flex w-full items-center gap-2 px-3 py-2 text-left text-[12px] text-[#f56c6c] transition-colors hover:bg-[#fef0f0]"
+      >
+        <Trash2 className="size-3.5 shrink-0" strokeWidth={1.75} />
+        <span className="flex-1">删除节点</span>
+      </button>
+    </div>
   );
-}
-
-function Divider() {
-  return <div className="h-px bg-[#ebeef5]" />;
 }

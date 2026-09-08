@@ -1,7 +1,7 @@
 // 节点卡 —— 画布上的单个节点
 //
 // 视觉：Element Plus 风格
-//   - 240×96 矩形，bg-white border-[#dcdfe6] rounded-md
+//   - 168×56 单行紧凑布局（icon + 标签 + 状态点），bg-white border-[#dcdfe6] rounded-md
 //   - 左侧 3px 分类色条
 //   - 端口：自包含 PortHandle 子组件，用 onMouseDown + window 同步
 //     native listener（Playwright drag dispatch 的是 mouse events，
@@ -50,6 +50,15 @@ interface Props {
   height: number;
   onMouseDown: (e: ReactMouseEvent<HTMLDivElement>) => void;
   hoveredPort?: { port: number; side: "input" | "output" } | null;
+  /**
+   * 右键回调：把右键事件上抛到 Canvas，由 Canvas 统一渲染菜单位于鼠标位置。
+   * 之所以不在 NodeCard 内部用 createPortal + position:fixed，是因为父级
+   * 世界层有 `transform: translate() scale()`，会创建一个 containing block
+   * 把 fixed 元素困在画布里（甚至完全不可见）；通过 Canvas 渲染则可以
+   * 把菜单作为 canvas div 的直接子元素（canvas div 本身没有 transform），
+   * 用 position:fixed 直接锚定到视口。
+   */
+  onContextMenuAt: (nodeId: string, clientX: number, clientY: number) => void;
 }
 
 // ─────────────────────────────────────────────
@@ -121,19 +130,23 @@ export function NodeCard({
   onMouseDown,
   onConnectStart,
   hoveredPort,
+  onContextMenuAt,
 }: Props & {
   onConnectStart: PortProps["onConnectStart"];
 }) {
   const nodeTypes = useAutodeployStore((s) => s.nodeTypes);
+
+  const onContextMenu = (e: ReactMouseEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation(); // 不冒泡到 Canvas，避免触发画布级右键菜单
+    onContextMenuAt(node.id, e.clientX, e.clientY);
+  };
+
   const def = nodeTypes.find((t) => t.id === node.type);
 
   const Icon =
     (def?.icon && (Icons as unknown as Record<string, LucideIcon>)[def.icon]) ||
     Icons.Circle;
-
-  const summary = def?.fields
-    .map((f) => ({ label: f.label, value: node.params[f.name] }))
-    .find((s) => s.value && s.value.length > 0);
 
   const bar = def ? CATEGORY_BAR[def.category] : "from-[#909399] to-[#b1b3b8]";
   const tint = def ? CATEGORY_LABEL_TINT[def.category] : "text-[#909399]";
@@ -141,6 +154,7 @@ export function NodeCard({
   return (
     <div
       onMouseDown={onMouseDown}
+      onContextMenu={onContextMenu}
       className={cn(
         "absolute select-none rounded-md border bg-white shadow-sm transition-shadow",
         "border-[#dcdfe6] hover:shadow-md",
@@ -163,38 +177,20 @@ export function NodeCard({
         aria-hidden
       />
 
-      <div
-        className="absolute -right-1.5 -top-1.5 flex items-center gap-1 rounded-full border border-white bg-white px-1.5 py-0.5 shadow-sm"
-        title={STATUS_LABEL[node.status]}
-      >
+      {/* 单行紧凑布局：图标 + 标签 + 状态点。56px 节点高度刚好放得下。
+          摘要 / category / type 这种次要信息放到右侧 Inspector，不再占
+          画布空间。 */}
+      <div className="flex h-full items-center gap-2 pl-2.5 pr-2 text-[12px] font-medium text-[#303133]">
+        <Icon className={cn("size-3.5 shrink-0", tint)} strokeWidth={1.75} />
+        <span className="flex-1 truncate">{def?.label ?? node.type}</span>
         <span
           className={cn(
-            "size-2 rounded-full",
+            "size-1.5 shrink-0 rounded-full",
             STATUS_DOT[node.status],
             node.status === "running" && "pulse-ring",
           )}
+          title={STATUS_LABEL[node.status]}
         />
-      </div>
-
-      <div className="flex h-7 items-center gap-2 px-2.5 pt-2 text-[13px] font-medium text-[#303133]">
-        <Icon className={cn("size-3.5 shrink-0", tint)} strokeWidth={1.75} />
-        <span className="truncate">{def?.label ?? node.type}</span>
-      </div>
-
-      <div className="px-2.5 pb-1 text-[11px] text-[#909399] truncate">
-        {summary ? (
-          <span>
-            <span className="text-[#c0c4cc]">{summary.label}:</span>{" "}
-            <span className="font-mono text-[#606266]">{summary.value}</span>
-          </span>
-        ) : (
-          <span>{def?.description ?? ""}</span>
-        )}
-      </div>
-
-      <div className="absolute bottom-1.5 left-2.5 right-2.5 flex items-center justify-between font-mono text-[10px] text-[#c0c4cc]">
-        <span className="uppercase tracking-wider">{def?.category}</span>
-        <span className="truncate">{node.type}</span>
       </div>
 
       {def?.inputs &&
@@ -230,6 +226,7 @@ export function NodeCard({
             />
           );
         })}
+
     </div>
   );
 }

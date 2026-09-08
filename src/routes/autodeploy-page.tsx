@@ -23,8 +23,10 @@ import { ExecutePanel } from "./autodeploy/components/execute-panel";
 import { useAutodeployStore } from "./autodeploy/store";
 import { runWorkflow } from "./autodeploy/lib/executor";
 
-const NODE_W = 240;
-const NODE_H = 96;
+// 与 canvas.tsx 里 NODE_W/NODE_H 保持一致；库拖拽落下时按这个偏移把节点
+// 中心对齐到鼠标位置（其实只是初始放置，后续用户可任意拖动）。
+const NODE_W = 168;
+const NODE_H = 56;
 
 export function AutodeployPage() {
   const loadNodeTypes = useAutodeployStore((s) => s.loadNodeTypes);

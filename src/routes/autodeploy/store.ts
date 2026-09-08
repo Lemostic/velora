@@ -36,7 +36,7 @@ const FALLBACK_NODE_TYPES: NodeType[] = [
     label: "本地文件",
     description: "指定一个本地文件作为部署源",
     icon: "File",
-    inputs: 0,
+    inputs: 1,
     outputs: 1,
     fields: [
       {
@@ -54,7 +54,7 @@ const FALLBACK_NODE_TYPES: NodeType[] = [
     label: "本地目录",
     description: "把一个目录作为整体作为部署源",
     icon: "FolderOpen",
-    inputs: 0,
+    inputs: 1,
     outputs: 1,
     fields: [
       {
@@ -72,7 +72,7 @@ const FALLBACK_NODE_TYPES: NodeType[] = [
     label: "本地压缩包",
     description: "从已有 zip / tar.gz 中挑选一个",
     icon: "FileArchive",
-    inputs: 0,
+    inputs: 1,
     outputs: 1,
     fields: [
       {
@@ -159,12 +159,93 @@ const FALLBACK_NODE_TYPES: NodeType[] = [
     ],
   },
   {
+    id: "ssh_session",
+    category: "transfer",
+    label: "SSH 会话",
+    description: "建立一次 SSH 连接，供连续的远端操作节点复用",
+    icon: "TerminalSquare",
+    inputs: 1,
+    outputs: 1,
+    fields: [
+      { name: "host", label: "服务器", kind: "text", required: true, placeholder: "10.20.30.40:22" },
+      { name: "user", label: "用户名", kind: "text", required: true, placeholder: "deploy" },
+      { name: "auth", label: "认证", kind: "select", required: true, default: "key", options: [{ value: "password", label: "密码" }, { value: "key", label: "私钥" }] },
+      { name: "secret", label: "凭据", kind: "text", required: true, placeholder: "密码或私钥路径" },
+    ],
+  },
+  {
+    id: "remote_compress",
+    category: "process",
+    label: "远端压缩",
+    description: "在服务器上直接把文件 / 目录压缩，不下载到本地",
+    icon: "FileArchive",
+    inputs: 2,
+    outputs: 1,
+    fields: [
+      { name: "source_path", label: "源路径（可选）", kind: "text", required: false, placeholder: "可由上游远端节点提供" },
+      { name: "output", label: "压缩包路径", kind: "text", required: true, placeholder: "/var/tmp/release.tar.gz" },
+      { name: "format", label: "格式", kind: "select", required: true, default: "tar.gz", options: [{ value: "tar.gz", label: "tar.gz" }, { value: "zip", label: "zip" }] },
+    ],
+  },
+  {
+    id: "remote_extract",
+    category: "process",
+    label: "远端解压",
+    description: "在服务器上直接解压 zip / tar.gz，不下载到本地",
+    icon: "FolderOpen",
+    inputs: 2,
+    outputs: 1,
+    fields: [
+      { name: "source_path", label: "压缩包路径（可选）", kind: "text", required: false, placeholder: "可由上游远端节点提供" },
+      { name: "output", label: "解压目录", kind: "text", required: true, placeholder: "/var/www/app" },
+      { name: "format", label: "格式", kind: "select", required: true, default: "auto", options: [{ value: "auto", label: "按扩展名" }, { value: "tar.gz", label: "tar.gz" }, { value: "zip", label: "zip" }] },
+    ],
+  },
+  {
+    id: "remote_copy",
+    category: "process",
+    label: "远端复制",
+    description: "在服务器上复制文件或目录",
+    icon: "Copy",
+    inputs: 2,
+    outputs: 1,
+    fields: [
+      { name: "source_path", label: "源路径（可选）", kind: "text", required: false, placeholder: "可由上游远端节点提供" },
+      { name: "target", label: "目标路径", kind: "text", required: true, placeholder: "/var/www/app-copy" },
+    ],
+  },
+  {
+    id: "remote_move",
+    category: "process",
+    label: "远端移动",
+    description: "在服务器上移动或重命名文件 / 目录",
+    icon: "FileOutput",
+    inputs: 2,
+    outputs: 1,
+    fields: [
+      { name: "source_path", label: "源路径（可选）", kind: "text", required: false, placeholder: "可由上游远端节点提供" },
+      { name: "target", label: "目标路径", kind: "text", required: true, placeholder: "/var/www/app-current" },
+    ],
+  },
+  {
+    id: "remote_delete",
+    category: "process",
+    label: "远端删除",
+    description: "在服务器上删除文件或目录（拒绝删除根目录）",
+    icon: "Trash2",
+    inputs: 2,
+    outputs: 1,
+    fields: [
+      { name: "source_path", label: "路径（可选）", kind: "text", required: false, placeholder: "可由上游远端节点提供" },
+    ],
+  },
+  {
     id: "sftp_upload",
     category: "transfer",
     label: "SFTP 上传",
     description: "把上游文件 / 目录上传到远端",
     icon: "Upload",
-    inputs: 1,
+    inputs: 2,
     outputs: 1,
     fields: [
       { name: "host", label: "服务器", kind: "text", required: true, placeholder: "10.20.30.40:22" },
@@ -190,7 +271,7 @@ const FALLBACK_NODE_TYPES: NodeType[] = [
     label: "SFTP 下载",
     description: "从远端拉文件回本地",
     icon: "Download",
-    inputs: 0,
+    inputs: 1,
     outputs: 1,
     fields: [
       { name: "host", label: "服务器", kind: "text", required: true, placeholder: "10.20.30.40:22" },
@@ -217,8 +298,8 @@ const FALLBACK_NODE_TYPES: NodeType[] = [
     label: "删除远端",
     description: "删除远端文件或目录（独立操作，无端口连接）",
     icon: "Trash2",
-    inputs: 0,
-    outputs: 0,
+    inputs: 1,
+    outputs: 1,
     fields: [
       { name: "host", label: "服务器", kind: "text", required: true, placeholder: "10.20.30.40:22" },
       { name: "user", label: "用户名", kind: "text", required: true, placeholder: "deploy" },
@@ -243,8 +324,8 @@ const FALLBACK_NODE_TYPES: NodeType[] = [
     label: "备份远端",
     description: "远端文件 / 目录打包为带时间戳的 zip（独立操作，无端口连接）",
     icon: "ShieldCheck",
-    inputs: 0,
-    outputs: 0,
+    inputs: 1,
+    outputs: 1,
     fields: [
       { name: "host", label: "服务器", kind: "text", required: true, placeholder: "10.20.30.40:22" },
       { name: "user", label: "用户名", kind: "text", required: true, placeholder: "deploy" },

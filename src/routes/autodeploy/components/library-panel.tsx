@@ -64,8 +64,15 @@ export function LibraryPanel({ onLibraryDrop }: LibraryPanelProps) {
   }, [nodeTypes]);
 
   // START / END 唯一性：画布已存在则禁用 library 里的对应项
-  const existingNodeTypes = useAutodeployStore(
-    (s) => new Set(s.workflow.nodes.map((n) => n.type)),
+  //
+  // ⚠️ 不要在这里直接 `useAutodeployStore((s) => new Set(...))`：selector 每次
+  // 调用都会 new 一个新 Set，useSyncExternalStore 的 getSnapshot 不稳定，
+  // 进入页面就会触发 React #185（Maximum update depth exceeded）无限重渲染。
+  // 正确姿势：先订阅稳定的 workflow 引用，再用 useMemo 派生 Set。
+  const workflow = useAutodeployStore((s) => s.workflow);
+  const existingNodeTypes = useMemo(
+    () => new Set(workflow.nodes.map((n) => n.type)),
+    [workflow],
   );
 
   // 同步装 native 监听（不进 useEffect 异步陷阱）。

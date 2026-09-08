@@ -55,4 +55,5 @@ quick-xml = { version = "0.36", features = ["serialize"] }
 sysinfo = "0.32"
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls", "blocking"] }
 chrono = { version = "0.4", default-features = false, features = ["clock"] }
-
+# SFTP / SSH 客户端（ssh2 绑定 libssh2）
+ssh2 = { version = "0.9", default-features = false, features = ["vendored-openssl"] }

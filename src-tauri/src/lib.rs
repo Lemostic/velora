@@ -18,6 +18,7 @@ use modules::{
     markitdown::markitdown_run,
     process_manager::{kill_process, list_processes},
     qrcode::qrcode_encode,
+    sftp::sftp_close_sessions,
     registry::ModuleRegistry,
     weekly_report::weekly_report_export,
     xml_json::{json_to_xml, xml_to_json},
@@ -151,7 +152,8 @@ pub fn run() {
             excel_schedule_export,
             weekly_report_export,
             autodeploy_list_node_types,
-            autodeploy_execute
+            autodeploy_execute,
+            sftp_close_sessions
         ])
         .run(tauri::generate_context!())
         .expect("error while running Velora");

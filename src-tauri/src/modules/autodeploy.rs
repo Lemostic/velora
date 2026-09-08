@@ -55,8 +55,16 @@ pub struct FieldDef {
     pub required: bool,
     pub placeholder: Option<&'static str>,
     pub default: Option<&'static str>,
-    /// 仅 Select 用
-    pub options: Option<&'static [(&'static str, &'static str)]>,
+    /// 仅 Select 用。序列化为 `{value, label}`，与前端 FieldOption 对齐。
+    pub options: Option<&'static [FieldOption]>,
+}
+
+/// Select 字段的单个选项。序列化为 `{value, label}` 对象（前端 React
+/// 直接读 `opt.value` / `opt.label`），不是元组数组。
+#[derive(Debug, Clone, Copy, Serialize)]
+pub struct FieldOption {
+    pub value: &'static str,
+    pub label: &'static str,
 }
 
 /// 节点类型完整定义 — 前端动态渲染库和 Inspector 的依据
@@ -85,7 +93,7 @@ const LOCAL_FILE: NodeType = NodeType {
     label: "本地文件",
     description: "指定一个本地文件作为部署源",
     icon: "File",
-    inputs: 0,
+    inputs: 1,
     outputs: 1,
     fields: &[FieldDef {
         name: "path",
@@ -104,7 +112,7 @@ const LOCAL_DIR: NodeType = NodeType {
     label: "本地目录",
     description: "把一个目录作为整体作为部署源",
     icon: "FolderOpen",
-    inputs: 0,
+    inputs: 1,
     outputs: 1,
     fields: &[FieldDef {
         name: "path",
@@ -123,7 +131,7 @@ const LOCAL_ARCHIVE: NodeType = NodeType {
     label: "本地压缩包",
     description: "从已有 zip / tar.gz 中挑选一个",
     icon: "FileArchive",
-    inputs: 0,
+    inputs: 1,
     outputs: 1,
     fields: &[
         FieldDef {
@@ -158,10 +166,10 @@ const COMPRESS: NodeType = NodeType {
     fields: &[
         FieldDef {
             name: "output",
-            label: "输出文件",
+            label: "输出目录",
             kind: FieldKind::Path,
             required: true,
-            placeholder: Some("C:\\dist\\release.zip"),
+            placeholder: Some("C:\\dist\\"),
             default: None,
             options: None,
         },
@@ -172,7 +180,11 @@ const COMPRESS: NodeType = NodeType {
             required: false,
             placeholder: None,
             default: Some("deflate"),
-            options: Some(&[("store", "不压缩"), ("deflate", "普通"), ("bzip2", "高压缩")]),
+            options: Some(&[
+                FieldOption { value: "store", label: "不压缩" },
+                FieldOption { value: "deflate", label: "普通" },
+                FieldOption { value: "bzip2", label: "高压缩" },
+            ]),
         },
     ],
 };
@@ -200,19 +212,85 @@ const COPY: NodeType = NodeType {
     id: "copy",
     category: NodeCategory::Process,
     label: "复制",
-    description: "复制上游文件 / 目录到新位置",
+    description: "把上游文件 / 目录复制到目标目录下，名称可自定义（留空则原名 - 副本）",
     icon: "Copy",
     inputs: 1,
     outputs: 1,
-    fields: &[FieldDef {
-        name: "output",
-        label: "目标路径",
-        kind: FieldKind::Path,
-        required: true,
-        placeholder: Some("D:\\backup"),
-        default: None,
-        options: None,
-    }],
+    fields: &[
+        FieldDef {
+            name: "output",
+            label: "目标目录",
+            kind: FieldKind::Path,
+            required: true,
+            placeholder: Some("D:\\backup"),
+            default: None,
+            options: None,
+        },
+        FieldDef {
+            name: "name",
+            label: "目标文件名",
+            kind: FieldKind::Text,
+            required: false,
+            placeholder: Some("留空则用 原名 - 副本"),
+            default: None,
+            options: None,
+        },
+    ],
+};
+
+/// SSH 会话节点：一次认证，后续所有 remote_* 节点通过 sessionId 复用连接。
+const SSH_SESSION: NodeType = NodeType {
+    id: "ssh_session",
+    category: NodeCategory::Transfer,
+    label: "SSH 会话",
+    description: "建立一次 SSH 连接，供连续的远端操作节点复用",
+    icon: "TerminalSquare",
+    inputs: 0,
+    outputs: 1,
+    fields: &[
+        FieldDef { name: "host", label: "服务器", kind: FieldKind::Text, required: true, placeholder: Some("10.20.30.40:22"), default: None, options: None },
+        FieldDef { name: "user", label: "用户名", kind: FieldKind::Text, required: true, placeholder: Some("deploy"), default: None, options: None },
+        FieldDef { name: "auth", label: "认证", kind: FieldKind::Select, required: true, placeholder: None, default: Some("key"), options: Some(&[FieldOption { value: "password", label: "密码" }, FieldOption { value: "key", label: "私钥" }]) },
+        FieldDef { name: "secret", label: "凭据", kind: FieldKind::Text, required: true, placeholder: Some("密码或私钥路径"), default: None, options: None },
+    ],
+};
+
+const REMOTE_COMPRESS: NodeType = NodeType {
+    id: "remote_compress", category: NodeCategory::Process, label: "远端压缩",
+    description: "在服务器上直接把文件 / 目录压缩，不下载到本地", icon: "FileArchive", inputs: 2, outputs: 1,
+    fields: &[
+        FieldDef { name: "source_path", label: "源路径（可选）", kind: FieldKind::Text, required: false, placeholder: Some("可由上游远端节点提供"), default: None, options: None },
+        FieldDef { name: "output", label: "压缩包路径", kind: FieldKind::Text, required: true, placeholder: Some("/var/tmp/release.tar.gz"), default: None, options: None },
+        FieldDef { name: "format", label: "格式", kind: FieldKind::Select, required: true, placeholder: None, default: Some("tar.gz"), options: Some(&[FieldOption { value: "tar.gz", label: "tar.gz" }, FieldOption { value: "zip", label: "zip" }]) },
+    ],
+};
+
+const REMOTE_EXTRACT: NodeType = NodeType {
+    id: "remote_extract", category: NodeCategory::Process, label: "远端解压",
+    description: "在服务器上直接解压 zip / tar.gz，不下载到本地", icon: "FolderOpen", inputs: 2, outputs: 1,
+    fields: &[
+        FieldDef { name: "source_path", label: "压缩包路径（可选）", kind: FieldKind::Text, required: false, placeholder: Some("可由上游远端节点提供"), default: None, options: None },
+        FieldDef { name: "output", label: "解压目录", kind: FieldKind::Text, required: true, placeholder: Some("/var/www/app"), default: None, options: None },
+        FieldDef { name: "format", label: "格式", kind: FieldKind::Select, required: true, placeholder: None, default: Some("auto"), options: Some(&[FieldOption { value: "auto", label: "按扩展名" }, FieldOption { value: "tar.gz", label: "tar.gz" }, FieldOption { value: "zip", label: "zip" }]) },
+    ],
+};
+
+const REMOTE_COPY: NodeType = NodeType {
+    id: "remote_copy", category: NodeCategory::Process, label: "远端复制",
+    description: "在服务器上复制文件或目录", icon: "Copy", inputs: 2, outputs: 1,
+    fields: &[FieldDef { name: "source_path", label: "源路径（可选）", kind: FieldKind::Text, required: false, placeholder: Some("可由上游远端节点提供"), default: None, options: None }, FieldDef { name: "target", label: "目标路径", kind: FieldKind::Text, required: true, placeholder: Some("/var/www/app-copy"), default: None, options: None }],
+};
+
+const REMOTE_MOVE: NodeType = NodeType {
+    id: "remote_move", category: NodeCategory::Process, label: "远端移动",
+    description: "在服务器上移动或重命名文件 / 目录", icon: "FileOutput", inputs: 2, outputs: 1,
+    fields: &[FieldDef { name: "source_path", label: "源路径（可选）", kind: FieldKind::Text, required: false, placeholder: Some("可由上游远端节点提供"), default: None, options: None }, FieldDef { name: "target", label: "目标路径", kind: FieldKind::Text, required: true, placeholder: Some("/var/www/app-current"), default: None, options: None }],
+};
+
+const REMOTE_DELETE: NodeType = NodeType {
+    id: "remote_delete", category: NodeCategory::Process, label: "远端删除",
+    description: "在服务器上删除文件或目录（拒绝删除根目录）", icon: "Trash2", inputs: 2, outputs: 1,
+    fields: &[FieldDef { name: "source_path", label: "路径（可选）", kind: FieldKind::Text, required: false, placeholder: Some("可由上游远端节点提供"), default: None, options: None }],
 };
 
 const SFTP_UPLOAD: NodeType = NodeType {
@@ -221,7 +299,7 @@ const SFTP_UPLOAD: NodeType = NodeType {
     label: "SFTP 上传",
     description: "把上游文件 / 目录上传到远端",
     icon: "Upload",
-    inputs: 1,
+    inputs: 2,
     outputs: 1,
     fields: &[
         FieldDef {
@@ -249,7 +327,10 @@ const SFTP_UPLOAD: NodeType = NodeType {
             required: true,
             placeholder: None,
             default: Some("key"),
-            options: Some(&[("password", "密码"), ("key", "私钥")]),
+            options: Some(&[
+                FieldOption { value: "password", label: "密码" },
+                FieldOption { value: "key", label: "私钥" },
+            ]),
         },
         FieldDef {
             name: "secret",
@@ -278,7 +359,7 @@ const SFTP_DOWNLOAD: NodeType = NodeType {
     label: "SFTP 下载",
     description: "从远端拉文件回本地",
     icon: "Download",
-    inputs: 0,
+    inputs: 1,
     outputs: 1,
     fields: &[
         FieldDef {
@@ -306,7 +387,10 @@ const SFTP_DOWNLOAD: NodeType = NodeType {
             required: true,
             placeholder: None,
             default: Some("key"),
-            options: Some(&[("password", "密码"), ("key", "私钥")]),
+            options: Some(&[
+                FieldOption { value: "password", label: "密码" },
+                FieldOption { value: "key", label: "私钥" },
+            ]),
         },
         FieldDef {
             name: "secret",
@@ -344,8 +428,8 @@ const SFTP_DELETE: NodeType = NodeType {
     label: "删除远端",
     description: "删除远端文件或目录",
     icon: "Trash2",
-    inputs: 0,
-    outputs: 0,
+    inputs: 1,
+    outputs: 1,
     fields: &[
         FieldDef {
             name: "host",
@@ -372,7 +456,10 @@ const SFTP_DELETE: NodeType = NodeType {
             required: true,
             placeholder: None,
             default: Some("key"),
-            options: Some(&[("password", "密码"), ("key", "私钥")]),
+            options: Some(&[
+                FieldOption { value: "password", label: "密码" },
+                FieldOption { value: "key", label: "私钥" },
+            ]),
         },
         FieldDef {
             name: "secret",
@@ -401,8 +488,8 @@ const SFTP_BACKUP: NodeType = NodeType {
     label: "备份远端",
     description: "远端文件 / 目录打包为带时间戳的 zip",
     icon: "ShieldCheck",
-    inputs: 0,
-    outputs: 0,
+    inputs: 1,
+    outputs: 1,
     fields: &[
         FieldDef {
             name: "host",
@@ -429,7 +516,10 @@ const SFTP_BACKUP: NodeType = NodeType {
             required: true,
             placeholder: None,
             default: Some("key"),
-            options: Some(&[("password", "密码"), ("key", "私钥")]),
+            options: Some(&[
+                FieldOption { value: "password", label: "密码" },
+                FieldOption { value: "key", label: "私钥" },
+            ]),
         },
         FieldDef {
             name: "secret",
@@ -569,10 +659,10 @@ const NOTIFY: NodeType = NodeType {
             placeholder: None,
             default: Some("info"),
             options: Some(&[
-                ("info", "信息"),
-                ("success", "成功"),
-                ("warning", "警告"),
-                ("error", "错误"),
+                FieldOption { value: "info", label: "信息" },
+                FieldOption { value: "success", label: "成功" },
+                FieldOption { value: "warning", label: "警告" },
+                FieldOption { value: "error", label: "错误" },
             ]),
         },
     ],
@@ -585,6 +675,12 @@ const BUILTIN_NODES: &[NodeType] = &[
     COMPRESS,
     EXTRACT,
     COPY,
+    SSH_SESSION,
+    REMOTE_COMPRESS,
+    REMOTE_EXTRACT,
+    REMOTE_COPY,
+    REMOTE_MOVE,
+    REMOTE_DELETE,
     SFTP_UPLOAD,
     SFTP_DOWNLOAD,
     SFTP_DELETE,
@@ -655,12 +751,19 @@ fn run_node(req: &AutodeployExecuteRequest) -> AutodeployExecuteResult {
         "compress" => process_compress(req),
         "extract" => process_extract(req),
         "copy" => process_copy(req),
+        "ssh_session" => crate::modules::sftp::sftp_ssh_session(req),
+        "remote_compress" => crate::modules::sftp::sftp_remote_compress(req),
+        "remote_extract" => crate::modules::sftp::sftp_remote_extract(req),
+        "remote_copy" => crate::modules::sftp::sftp_remote_copy(req),
+        "remote_move" => crate::modules::sftp::sftp_remote_move(req),
+        "remote_delete" => crate::modules::sftp::sftp_remote_delete(req),
         "sftp_upload" | "sftp_download" | "sftp_delete" | "sftp_backup" => {
-            sftp_stub(req)
+            transfer_sftp(req)
         }
         "if_status" => control_if_status(req),
         "retry" => control_retry(req),
         "end" => control_end(req),
+        "start" => control_start(req),
         "notify" => control_notify(req),
         other => AutodeployExecuteResult {
             ok: false,
@@ -785,7 +888,7 @@ fn source_local_archive(req: &AutodeployExecuteRequest) -> AutodeployExecuteResu
 // Process 节点
 // -----------------------------------------------------------------------------
 
-fn upstream_path(req: &AutodeployExecuteRequest) -> Option<String> {
+pub(crate) fn upstream_path(req: &AutodeployExecuteRequest) -> Option<String> {
     req.inputs
         .iter()
         .find_map(|v| v.get("path").and_then(|p| p.as_str()).map(|s| s.to_string()))
@@ -807,29 +910,60 @@ fn process_compress(req: &AutodeployExecuteRequest) -> AutodeployExecuteResult {
     if !src_path.exists() {
         return fail(req, &format!("源路径不存在：{}", src));
     }
+    // output 既可以是目录（前端默认行为，自动按源名生成 .zip），
+    // 也可以是带 .zip 后缀的文件路径（向后兼容，保留用户指定的最终文件名）。
     let out_path = PathBuf::from(&out);
-    if let Some(parent) = out_path.parent() {
-        if !parent.as_os_str().is_empty() {
-            if let Err(e) = fs::create_dir_all(parent) {
-                return fail(req, &format!("无法创建父目录 {}：{}", parent.display(), e));
+    let final_path = match out_path.extension().and_then(|s| s.to_str()) {
+        Some(ext) if ext.eq_ignore_ascii_case("zip") => {
+            if let Some(parent) = out_path.parent() {
+                if !parent.as_os_str().is_empty() {
+                    if let Err(e) = fs::create_dir_all(parent) {
+                        return fail(req, &format!("无法创建父目录 {}：{}", parent.display(), e));
+                    }
+                }
             }
+            out_path.clone()
         }
-    }
+        _ => {
+            // 用户给的是目录：在它下面放 `<源名>.zip`
+            if let Err(e) = fs::create_dir_all(&out_path) {
+                return fail(req, &format!("无法创建输出目录 {}：{}", out_path.display(), e));
+            }
+            let stem = derive_zip_name(&src_path);
+            out_path.join(format!("{}.zip", stem))
+        }
+    };
+    let final_path_str = final_path.to_string_lossy().to_string();
     let method = param_str(req, "level").unwrap_or_else(|| "deflate".to_string());
-    match zip_dir_or_file(&src_path, &out_path, &method) {
+    match zip_dir_or_file(&src_path, &final_path, &method) {
         Ok(size) => AutodeployExecuteResult {
             ok: true,
             node_id: req.node_id.clone(),
-            message: format!("✓ 压缩完成 {} ({} 字节)", out, size),
+            message: format!("✓ 压缩完成 {} ({} 字节)", final_path_str, size),
             output: Some(serde_json::json!({
                 "kind": "file",
-                "path": out,
+                "path": final_path_str,
                 "size": size,
             })),
             elapsed_ms: 0,
         },
         Err(e) => fail(req, &format!("压缩失败：{}", e)),
     }
+}
+
+/// 从源路径推导一个合理的 zip 文件名。
+/// 思路是"压哪个东西，zip 就叫那个名"：
+///   - 目录源：取目录自己的最后一段（如 `frontend`）
+///   - 文件源：取 stem（`index.html` → `index`）
+///   - 都没有就 `archive`
+fn derive_zip_name(src: &Path) -> String {
+    if let Some(name) = src.file_name().and_then(|s| s.to_str()) {
+        if !name.is_empty() {
+            let stem = Path::new(name).file_stem().and_then(|s| s.to_str());
+            return stem.unwrap_or(name).to_string();
+        }
+    }
+    "archive".to_string()
 }
 
 fn process_extract(req: &AutodeployExecuteRequest) -> AutodeployExecuteResult {
@@ -866,38 +1000,100 @@ fn process_copy(req: &AutodeployExecuteRequest) -> AutodeployExecuteResult {
     let Some(src) = upstream_path(req) else {
         return fail(req, "上游未产出 path，无法复制");
     };
-    let Some(out) = param_str(req, "output") else {
-        return fail(req, "缺少 output 参数");
+    let Some(out_dir) = param_str(req, "output") else {
+        return fail(req, "缺少 output（目标目录）参数");
     };
     let src_path = PathBuf::from(&src);
-    let out_path = PathBuf::from(&out);
+    let out_dir_path = PathBuf::from(&out_dir);
     if !src_path.exists() {
         return fail(req, &format!("源不存在：{}", src));
     }
+    if let Err(e) = fs::create_dir_all(&out_dir_path) {
+        return fail(
+            req,
+            &format!("无法创建目标目录 {}：{}", out_dir_path.display(), e),
+        );
+    }
+    let src_name = src_path
+        .file_name()
+        .and_then(|s| s.to_str())
+        .unwrap_or("");
+    let user_name = param_str(req, "name").unwrap_or_default();
+    let target_name = if !user_name.trim().is_empty() {
+        user_name.trim().to_string()
+    } else if !src_name.is_empty() {
+        derive_copy_name(&src_path)
+    } else {
+        return fail(req, "源没有可用的文件名，请填写目标文件名");
+    };
+    let out_path = out_dir_path.join(&target_name);
     let result: std::io::Result<u64> = (|| {
         if src_path.is_dir() {
             copy_dir_recursive(&src_path, &out_path)?;
             Ok(fs::metadata(&out_path).map(|m| m.len()).unwrap_or(0))
         } else {
-            if let Some(parent) = out_path.parent() {
-                fs::create_dir_all(parent)?;
-            }
             Ok(fs::copy(&src_path, &out_path)?)
         }
     })();
     match result {
-        Ok(size) => AutodeployExecuteResult {
-            ok: true,
-            node_id: req.node_id.clone(),
-            message: format!("✓ 复制到 {}（{} 字节）", out, size),
-            output: Some(serde_json::json!({
-                "kind": if src_path.is_dir() { "dir" } else { "file" },
-                "path": out,
-                "size": size,
-            })),
-            elapsed_ms: 0,
-        },
+        Ok(size) => {
+            let out_str = out_path.to_string_lossy().to_string();
+            AutodeployExecuteResult {
+                ok: true,
+                node_id: req.node_id.clone(),
+                message: format!("复制到 {}（{} 字节）", out_str, size),
+                output: Some(serde_json::json!({
+                    "kind": if src_path.is_dir() { "dir" } else { "file" },
+                    "path": out_str,
+                    "size": size,
+                })),
+                elapsed_ms: 0,
+            }
+        }
         Err(e) => fail(req, &format!("复制失败：{}", e)),
+    }
+}
+
+/// 根据源路径推导默认的复制目标名：
+///   - 文件 `report.pdf` -> `report - 副本.pdf`
+///   - 目录 `frontend`   -> `frontend - 副本`
+/// 如果目标已经带 ` - 副本`，自动改为 ` - 副本 (2)` / `(3)` ...
+fn derive_copy_name(src: &Path) -> String {
+    let suffix = " - 副本";
+    if src.is_dir() {
+        let name = src.file_name().and_then(|s| s.to_str()).unwrap_or("untitled");
+        return bump_copy_suffix(name, suffix);
+    }
+    let stem = src.file_stem().and_then(|s| s.to_str()).unwrap_or("untitled");
+    let ext = src.extension().and_then(|s| s.to_str());
+    let new_stem = bump_copy_suffix(stem, suffix);
+    match ext {
+        Some(e) => format!("{}.{}", new_stem, e),
+        None => new_stem,
+    }
+}
+
+/// 给 stem 追加 ` - 副本` 后缀；如果已经有则加编号避免覆盖：
+///   - `foo`              -> `foo - 副本`
+///   - `foo - 副本`       -> `foo - 副本 (2)`
+///   - `foo - 副本 (2)`   -> `foo - 副本 (3)`
+///   - `foo - 副本 (99)`  -> `foo - 副本 (100)`
+fn bump_copy_suffix(name: &str, suffix: &str) -> String {
+    if let Some(idx) = name.rfind(suffix) {
+        let head = &name[..idx];
+        let tail = &name[idx + suffix.len()..];
+        if tail.is_empty() {
+            return format!("{} (2)", name);
+        }
+        if let Some(num) = tail.strip_prefix(" (").and_then(|s| s.strip_suffix(")")) {
+            if let Ok(n) = num.parse::<u32>() {
+                return format!("{}{} ({})", head, suffix, n + 1);
+            }
+        }
+        // tail 既不是空也不是 `(N)`，说明 stem 末尾不是完整副本后缀，原样返回
+        name.to_string()
+    } else {
+        format!("{}{}", name, suffix)
     }
 }
 
@@ -905,27 +1101,17 @@ fn process_copy(req: &AutodeployExecuteRequest) -> AutodeployExecuteResult {
 // SFTP 节点占位
 // -----------------------------------------------------------------------------
 
-fn sftp_stub(req: &AutodeployExecuteRequest) -> AutodeployExecuteResult {
-    AutodeployExecuteResult {
-        ok: false,
-        node_id: req.node_id.clone(),
-        message: format!(
-            "{}：SFTP 后端待实现，需引入 ssh crate 才能真正联通服务器",
-            req.node_type
-        ),
-        output: None,
-        elapsed_ms: 0,
+/// 把 4 个 SFTP 节点派发到真正的实现。错误信息统一为中文。
+fn transfer_sftp(req: &AutodeployExecuteRequest) -> AutodeployExecuteResult {
+    match req.node_type.as_str() {
+        "sftp_upload" => crate::modules::sftp::sftp_upload(req),
+        "sftp_download" => crate::modules::sftp::sftp_download(req),
+        "sftp_delete" => crate::modules::sftp::sftp_delete(req),
+        "sftp_backup" => crate::modules::sftp::sftp_backup(req),
+        other => fail(req, &format!("未知 SFTP 节点类型：{}", other)),
     }
 }
 
-// -----------------------------------------------------------------------------
-// 控制流节点（control flow）
-// -----------------------------------------------------------------------------
-
-/// 状态分支：检查上游节点的输出，自行走 success / failure 路径。
-///
-/// 实际分发由前端 executor.ts 完成（基于 upstream 的 status 字段），
-/// Rust 端只标记 metadata：当前节点自身总是返回 ok（它本身没失败语义）。
 fn control_if_status(req: &AutodeployExecuteRequest) -> AutodeployExecuteResult {
     // 当前节点无上游（inputs=0）或上游已执行（inputs=1）都允许。
     // 真正的 success / failure 路由由前端拓扑执行器根据
@@ -980,6 +1166,19 @@ fn control_end(req: &AutodeployExecuteRequest) -> AutodeployExecuteResult {
     }
 }
 
+/// 起点标记节点：不实际执行任何动作，仅返回 ok。前端执行器会把 start
+/// 节点作为配置位短路掉，这里再加一层防御，避免任何调用方误传 start 时
+/// 落到"未知节点类型"分支。
+fn control_start(req: &AutodeployExecuteRequest) -> AutodeployExecuteResult {
+    AutodeployExecuteResult {
+        ok: true,
+        node_id: req.node_id.clone(),
+        message: "✓ 工作流起点".to_string(),
+        output: Some(serde_json::json!({ "kind": "start" })),
+        elapsed_ms: 0,
+    }
+}
+
 /// 通知：发送系统通知。当前 stub，等 Tauri 通知插件接入后实发。
 fn control_notify(req: &AutodeployExecuteRequest) -> AutodeployExecuteResult {
     let title = param_str(req, "title").unwrap_or_else(|| "Velora 通知".to_string());
@@ -1003,7 +1202,7 @@ fn control_notify(req: &AutodeployExecuteRequest) -> AutodeployExecuteResult {
 // 小工具
 // -----------------------------------------------------------------------------
 
-fn fail(req: &AutodeployExecuteRequest, msg: &str) -> AutodeployExecuteResult {
+pub(crate) fn fail(req: &AutodeployExecuteRequest, msg: &str) -> AutodeployExecuteResult {
     AutodeployExecuteResult {
         ok: false,
         node_id: req.node_id.clone(),
@@ -1118,7 +1317,7 @@ mod tests {
     #[test]
     fn builtin_list_is_complete() {
         let nodes = autodeploy_list_node_types();
-        assert_eq!(nodes.len(), 14, "expect 14 built-in node types");
+        assert_eq!(nodes.len(), 21, "expect 21 built-in node types");
         let ids: Vec<&str> = nodes.iter().map(|n| n.id).collect();
         for must in &[
             "local_file",
@@ -1127,6 +1326,12 @@ mod tests {
             "compress",
             "extract",
             "copy",
+            "ssh_session",
+            "remote_compress",
+            "remote_extract",
+            "remote_copy",
+            "remote_move",
+            "remote_delete",
             "sftp_upload",
             "sftp_download",
             "sftp_delete",
@@ -1135,6 +1340,7 @@ mod tests {
             "retry",
             "end",
             "notify",
+            "start",
         ] {
             assert!(ids.contains(must), "missing node type {}", must);
         }
@@ -1159,7 +1365,8 @@ mod tests {
     }
 
     #[test]
-    fn sftp_stub_returns_failure() {
+    fn sftp_missing_params_returns_clear_error() {
+        // 没有 host/user/auth/secret 时应该立刻给出可读错误，而不是连了再断
         let req = AutodeployExecuteRequest {
             node_id: "n1".into(),
             node_type: "sftp_upload".into(),
@@ -1167,7 +1374,522 @@ mod tests {
             inputs: vec![],
         };
         let r = autodeploy_execute(req);
-        assert!(!r.ok, "sftp 上传应返回失败（占位）");
-        assert!(r.message.contains("ssh"));
+        assert!(!r.ok);
+        assert!(r.message.contains("missing"),
+            "expected 'missing' or Chinese 缺少 error, got: {}",
+            r.message
+        );
     }
+
+    #[test]
+    fn select_field_options_serialize_as_objects() {
+        // 前端 FieldOption 期望 `{value, label}`，不是元组数组。
+        // 序列化错位会让所有 6 个 select 渲染成空白下拉。
+        let nodes = autodeploy_list_node_types();
+        let compress = nodes.iter().find(|n| n.id == "compress").unwrap();
+        let level = compress
+            .fields
+            .iter()
+            .find(|f| f.name == "level")
+            .unwrap();
+        let opts = level.options.expect("compress.level 应该有 options");
+        let json = serde_json::to_string(&opts).unwrap();
+        // 期望：[{"value":"store","label":"不压缩"},...]
+        assert!(
+            json.contains("\"value\":\"store\""),
+            "缺 value 字段，实际：{}",
+            json
+        );
+        assert!(
+            json.contains("\"label\":\"不压缩\""),
+            "缺 label 字段，实际：{}",
+            json
+        );
+        assert!(
+            !json.contains("[["),
+            "不应再以元组数组形式序列化：{}",
+            json
+        );
+
+        let notify = nodes.iter().find(|n| n.id == "notify").unwrap();
+        let notify_level = notify
+            .fields
+            .iter()
+            .find(|f| f.name == "level")
+            .unwrap();
+        let json = serde_json::to_string(notify_level.options.as_ref().unwrap()).unwrap();
+        for (v, l) in [
+            ("info", "信息"),
+            ("success", "成功"),
+            ("warning", "警告"),
+            ("error", "错误"),
+        ] {
+            assert!(
+                json.contains(&format!("\"value\":\"{}\"", v)),
+                "notify.{} 缺 value={}",
+                v,
+                json
+            );
+            assert!(
+                json.contains(&format!("\"label\":\"{}\"", l)),
+                "notify.{} 缺 label={}",
+                l,
+                json
+            );
+        }
+
+        let upload = nodes.iter().find(|n| n.id == "sftp_upload").unwrap();
+        let auth = upload.fields.iter().find(|f| f.name == "auth").unwrap();
+        let json = serde_json::to_string(auth.options.as_ref().unwrap()).unwrap();
+        assert!(json.contains("\"value\":\"password\""));
+        assert!(json.contains("\"value\":\"key\""));
+        assert!(json.contains("\"label\":\"密码\""));
+        assert!(json.contains("\"label\":\"私钥\""));
+    }
+
+    struct TmpDir(PathBuf);
+    impl TmpDir {
+        fn new(tag: &str) -> Self {
+            let p = std::env::temp_dir().join(format!(
+                "velora-test-{}-{}-{}",
+                tag,
+                std::process::id(),
+                std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap()
+                    .as_nanos()
+            ));
+            fs::create_dir_all(&p).unwrap();
+            Self(p)
+        }
+    }
+    impl Drop for TmpDir {
+        fn drop(&mut self) {
+            let _ = fs::remove_dir_all(&self.0);
+        }
+    }
+
+    fn s(s: &str) -> serde_json::Value {
+        serde_json::Value::String(s.to_string())
+    }
+
+    fn exec_with_params(node_type: &str, params: serde_json::Map<String, serde_json::Value>, inputs: Vec<serde_json::Value>) -> AutodeployExecuteResult {
+        autodeploy_execute(AutodeployExecuteRequest {
+            node_id: format!("n_{}", node_type),
+            node_type: node_type.to_string(),
+            params,
+            inputs,
+        })
+    }
+
+    #[test]
+    fn source_local_file_ok() {
+        let tmp = TmpDir::new("src-file");
+        let p = tmp.0.join("a.txt");
+        fs::write(&p, "hello").unwrap();
+        let mut params = serde_json::Map::new();
+        params.insert("path".to_string(), s(&p.to_string_lossy()));
+        let r = exec_with_params("local_file", params, vec![]);
+        assert!(r.ok, "local_file 应 ok：{}", r.message);
+        let out = r.output.unwrap();
+        assert_eq!(out.get("kind").and_then(|v| v.as_str()), Some("file"));
+        assert_eq!(out.get("path").and_then(|v| v.as_str()), Some(p.to_string_lossy().as_ref()));
+        assert_eq!(out.get("size").and_then(|v| v.as_u64()), Some(5));
+    }
+
+    #[test]
+    fn source_local_file_missing_returns_error() {
+        let mut params = serde_json::Map::new();
+        params.insert("path".to_string(), s("C:\\does\\not\\exist\\nope.txt"));
+        let r = exec_with_params("local_file", params, vec![]);
+        assert!(!r.ok);
+        assert!(r.message.contains("无法访问") || r.message.contains("不存在"));
+    }
+
+    #[test]
+    fn source_local_dir_ok() {
+        let tmp = TmpDir::new("src-dir");
+        let d = tmp.0.join("proj");
+        fs::create_dir_all(&d).unwrap();
+        fs::write(d.join("x.txt"), "x").unwrap();
+        fs::write(d.join("y.txt"), "y").unwrap();
+        let mut params = serde_json::Map::new();
+        params.insert("path".to_string(), s(&d.to_string_lossy()));
+        let r = exec_with_params("local_dir", params, vec![]);
+        assert!(r.ok, "local_dir 应 ok：{}", r.message);
+        let out = r.output.unwrap();
+        assert_eq!(out.get("kind").and_then(|v| v.as_str()), Some("dir"));
+        assert_eq!(out.get("entries").and_then(|v| v.as_u64()), Some(2));
+    }
+
+    #[test]
+    fn source_local_dir_rejects_file() {
+        let tmp = TmpDir::new("src-dir-file");
+        let p = tmp.0.join("a.txt");
+        fs::write(&p, "x").unwrap();
+        let mut params = serde_json::Map::new();
+        params.insert("path".to_string(), s(&p.to_string_lossy()));
+        let r = exec_with_params("local_dir", params, vec![]);
+        assert!(!r.ok);
+        assert!(r.message.contains("不是目录"));
+    }
+
+    #[test]
+    fn source_local_archive_ok() {
+        let tmp = TmpDir::new("src-archive");
+        let p = tmp.0.join("dist.zip");
+        fs::write(&p, b"PK\x03\x04").unwrap();
+        let mut params = serde_json::Map::new();
+        params.insert("path".to_string(), s(&p.to_string_lossy()));
+        let r = exec_with_params("local_archive", params, vec![]);
+        assert!(r.ok, "local_archive 应 ok：{}", r.message);
+        let out = r.output.unwrap();
+        assert_eq!(out.get("kind").and_then(|v| v.as_str()), Some("archive"));
+    }
+
+    #[test]
+    fn source_local_archive_rejects_bad_extension() {
+        let tmp = TmpDir::new("src-archive-bad");
+        let p = tmp.0.join("a.exe");
+        fs::write(&p, b"x").unwrap();
+        let mut params = serde_json::Map::new();
+        params.insert("path".to_string(), s(&p.to_string_lossy()));
+        let r = exec_with_params("local_archive", params, vec![]);
+        assert!(!r.ok);
+        assert!(r.message.contains("白名单") || r.message.contains(".exe"));
+    }
+
+    #[test]
+    fn process_extract_ok() {
+        let tmp = TmpDir::new("extract");
+        let src = tmp.0.join("payload");
+        fs::create_dir_all(&src).unwrap();
+        fs::write(src.join("hello.txt"), "world").unwrap();
+        let zip_path = tmp.0.join("payload.zip");
+        let mut cp_params = serde_json::Map::new();
+        cp_params.insert("output".to_string(), s(&zip_path.to_string_lossy()));
+        cp_params.insert("level".to_string(), s("store"));
+        let mut src_obj = serde_json::Map::new();
+        src_obj.insert("path".to_string(), s(&src.to_string_lossy()));
+        let cp = exec_with_params(
+            "compress",
+            cp_params,
+            vec![serde_json::Value::Object(src_obj)],
+        );
+        assert!(cp.ok, "compress for extract test failed: {}", cp.message);
+
+        let out_dir = tmp.0.join("unpacked");
+        let mut ex_params = serde_json::Map::new();
+        ex_params.insert("output".to_string(), s(&out_dir.to_string_lossy()));
+        let mut in_obj = serde_json::Map::new();
+        in_obj.insert("path".to_string(), s(&zip_path.to_string_lossy()));
+        let r = exec_with_params("extract", ex_params, vec![serde_json::Value::Object(in_obj)]);
+        assert!(r.ok, "extract 应 ok：{}", r.message);
+        assert!(out_dir.join("hello.txt").exists(), "未解压出 hello.txt");
+    }
+
+    #[test]
+    #[test]
+    fn process_copy_file_ok() {
+        // output 现在是目录，配合 name 字段命名
+        let tmp = TmpDir::new("copy-file");
+        let src = tmp.0.join("a.txt");
+        fs::write(&src, "12345").unwrap();
+        let dst_dir = tmp.0.join("sub");
+        let expected = dst_dir.join("b.txt");
+        let mut src_obj = serde_json::Map::new();
+        src_obj.insert("path".to_string(), s(&src.to_string_lossy()));
+        let mut cp_params = serde_json::Map::new();
+        cp_params.insert("output".to_string(), s(&dst_dir.to_string_lossy()));
+        cp_params.insert("name".to_string(), s("b.txt"));
+        let r = exec_with_params("copy", cp_params, vec![serde_json::Value::Object(src_obj)]);
+        assert!(r.ok, "copy file ok: {}", r.message);
+        assert!(expected.exists(), "目标文件应被创建：{}", expected.display());
+        assert_eq!(fs::read_to_string(&expected).unwrap(), "12345");
+        // output.path 应指向最终文件
+        let out_path = r.output.unwrap().get("path").and_then(|v| v.as_str()).unwrap().to_string();
+        assert_eq!(out_path, expected.to_string_lossy().to_string());
+    }
+
+    #[test]
+    fn process_copy_dir_ok() {
+        // 复制目录：output 是父目录，name 是目标目录名
+        let tmp = TmpDir::new("copy-dir");
+        let src = tmp.0.join("srcdir");
+        fs::create_dir_all(src.join("sub")).unwrap();
+        fs::write(src.join("a.txt"), "1").unwrap();
+        fs::write(src.join("sub").join("b.txt"), "2").unwrap();
+        let dst_dir = tmp.0.join("out");
+        let expected = dst_dir.join("dstdir");
+        let mut src_obj = serde_json::Map::new();
+        src_obj.insert("path".to_string(), s(&src.to_string_lossy()));
+        let mut cp_params = serde_json::Map::new();
+        cp_params.insert("output".to_string(), s(&dst_dir.to_string_lossy()));
+        cp_params.insert("name".to_string(), s("dstdir"));
+        let r = exec_with_params("copy", cp_params, vec![serde_json::Value::Object(src_obj)]);
+        assert!(r.ok, "copy dir ok: {}", r.message);
+        assert!(expected.join("a.txt").exists());
+        assert!(expected.join("sub").join("b.txt").exists());
+        let out_path = r.output.unwrap().get("path").and_then(|v| v.as_str()).unwrap().to_string();
+        assert_eq!(out_path, expected.to_string_lossy().to_string());
+    }
+
+
+    #[test]
+    fn all_nodes_list_includes_required_ids() {
+        let nodes = autodeploy_list_node_types();
+        assert_eq!(nodes.len(), 21);
+        for id in [
+            "local_file", "local_dir", "local_archive",
+            "compress", "extract", "copy",
+            "sftp_upload", "sftp_download", "sftp_delete", "sftp_backup",
+            "if_status", "retry", "end", "notify", "start",
+        ] {
+            let n = nodes.iter().find(|x| x.id == id).unwrap_or_else(|| panic!("missing node {}", id));
+            assert!(!n.label.is_empty());
+            assert!(!n.icon.is_empty());
+        }
+    }
+
+    #[test]
+    fn retry_node_has_number_fields() {
+        let nodes = autodeploy_list_node_types();
+        let r = nodes.iter().find(|n| n.id == "retry").unwrap();
+        assert!(r.fields.iter().any(|f| f.name == "max_retries"));
+        assert!(r.fields.iter().any(|f| f.name == "retry_delay"));
+    }
+
+    #[test]
+    fn if_status_has_two_outputs() {
+        let nodes = autodeploy_list_node_types();
+        let n = nodes.iter().find(|x| x.id == "if_status").unwrap();
+        assert_eq!(n.inputs, 1);
+        assert_eq!(n.outputs, 2);
+    }
+
+    #[test]
+    fn start_and_end_have_no_required_fields() {
+        // 这两个是配置位，Inspector 不该弹出红色星号
+        let nodes = autodeploy_list_node_types();
+        for id in ["start", "end"] {
+            let n = nodes.iter().find(|x| x.id == id).unwrap();
+            for f in n.fields {
+                assert!(!f.required, "{} 的字段 {} 不应标 required", id, f.name);
+            }
+        }
+    }
+
+#[test]
+    fn start_node_returns_ok_without_invocation() {
+        let req = AutodeployExecuteRequest {
+            node_id: "n_start".into(),
+            node_type: "start".into(),
+            params: Default::default(),
+            inputs: vec![],
+        };
+        let r = autodeploy_execute(req);
+        assert!(r.ok, "start 应返回 ok：{}", r.message);
+        assert!(r.message.contains("起点"));
+    }
+
+    #[test]
+    fn compress_dir_output_auto_names_zip_from_source_dir() {
+        let tmp = TmpDir::new("compress-dir");
+        let src_dir = tmp.0.join("frontend");
+        fs::create_dir_all(&src_dir).unwrap();
+        fs::write(src_dir.join("index.html"), "<html/>").unwrap();
+        fs::write(src_dir.join("app.js"), "console.log(1);").unwrap();
+        let out_dir = tmp.0.join("out");
+
+        let mut params = serde_json::Map::new();
+        params.insert("output".to_string(), s(&out_dir.to_string_lossy()));
+        params.insert("level".to_string(), s("deflate"));
+
+        let mut src_obj = serde_json::Map::new();
+        src_obj.insert("path".to_string(), s(&src_dir.to_string_lossy()));
+        let req = AutodeployExecuteRequest {
+            node_id: "n1".into(),
+            node_type: "compress".into(),
+            params,
+            inputs: vec![serde_json::Value::Object(src_obj)],
+        };
+
+        let r = autodeploy_execute(req);
+        assert!(r.ok, "compress 应成功：{}", r.message);
+
+        let expected_zip = out_dir.join("frontend.zip");
+        assert!(expected_zip.exists(), "zip 未在 {} 生成", expected_zip.display());
+
+        let out_path = r
+            .output
+            .as_ref()
+            .and_then(|v| v.get("path"))
+            .and_then(|v| v.as_str())
+            .unwrap();
+        assert_eq!(out_path, expected_zip.to_string_lossy());
+
+        // 验证 zip 实际含 index.html
+        let f = fs::File::open(&expected_zip).unwrap();
+        let mut zip = zip::ZipArchive::new(f).unwrap();
+        let mut entry = zip.by_name("index.html").expect("zip 应包含 index.html");
+        let mut buf = String::new();
+        use std::io::Read;
+        entry.read_to_string(&mut buf).unwrap();
+        assert_eq!(buf, "<html/>");
+    }
+
+    #[test]
+    fn compress_explicit_zip_path_is_respected() {
+        let tmp = TmpDir::new("compress-zip");
+        let src_dir = tmp.0.join("frontend");
+        fs::create_dir_all(&src_dir).unwrap();
+        fs::write(src_dir.join("index.html"), "<html/>").unwrap();
+        let out_zip = tmp.0.join("release.zip");
+
+        let mut params = serde_json::Map::new();
+        params.insert("output".to_string(), s(&out_zip.to_string_lossy()));
+        params.insert("level".to_string(), s("deflate"));
+
+        let mut src_obj = serde_json::Map::new();
+        src_obj.insert("path".to_string(), s(&src_dir.to_string_lossy()));
+        let req = AutodeployExecuteRequest {
+            node_id: "n1".into(),
+            node_type: "compress".into(),
+            params,
+            inputs: vec![serde_json::Value::Object(src_obj)],
+        };
+
+        let r = autodeploy_execute(req);
+        assert!(r.ok, "compress 应成功：{}", r.message);
+        assert!(out_zip.exists(), "用户指定的 zip 未生成");
+        let out_path = r
+            .output
+            .as_ref()
+            .and_then(|v| v.get("path"))
+            .and_then(|v| v.as_str())
+            .unwrap();
+        assert_eq!(out_path, out_zip.to_string_lossy());
+    }
+
+    #[test]
+    fn compress_chain_local_file_then_compress() {
+        // 模拟前端 executor 的串联：local_file → compress。
+        // 修复 executor 之前，compress 拿到的 inputs.path 是 ""，会报"源路径不存在"。
+        let tmp = TmpDir::new("chain");
+        let src_dir = tmp.0.join("frontend");
+        fs::create_dir_all(&src_dir).unwrap();
+        fs::write(src_dir.join("index.html"), "<html/>").unwrap();
+        let out_dir = tmp.0.join("dist");
+
+        // 1) local_file
+        let mut lf_params = serde_json::Map::new();
+        let lf_path = src_dir.join("index.html");
+        lf_params.insert("path".to_string(), s(&lf_path.to_string_lossy()));
+        let lf_req = AutodeployExecuteRequest {
+            node_id: "lf".into(),
+            node_type: "local_file".into(),
+            params: lf_params,
+            inputs: vec![],
+        };
+        let lf_res = autodeploy_execute(lf_req);
+        assert!(lf_res.ok, "local_file 失败：{}", lf_res.message);
+        let lf_output = lf_res.output.expect("local_file 应返回 output");
+
+        // 2) compress 直接消费 local_file 的 output
+        let mut cp_params = serde_json::Map::new();
+        cp_params.insert("output".to_string(), s(&out_dir.to_string_lossy()));
+        cp_params.insert("level".to_string(), s("deflate"));
+        let cp_req = AutodeployExecuteRequest {
+            node_id: "cp".into(),
+            node_type: "compress".into(),
+            params: cp_params,
+            inputs: vec![lf_output],
+        };
+        let cp_res = autodeploy_execute(cp_req);
+        assert!(
+            cp_res.ok,
+            "compress 用上游 output 失败：{}（修复前会因 path 为空报\"源路径不存在\"）",
+            cp_res.message
+        );
+
+        let out_path = cp_res
+            .output
+            .as_ref()
+            .and_then(|v| v.get("path"))
+            .and_then(|v| v.as_str())
+            .unwrap();
+        let p = Path::new(out_path);
+        assert!(p.exists(), "压缩产物 {} 不存在", out_path);
+        assert_eq!(p.parent().unwrap(), out_dir);
+        assert!(p.extension().and_then(|e| e.to_str()) == Some("zip"));
+    }
+    #[test]
+    fn process_copy_default_name_for_file() {
+        // name 留空：文件 → stem - 副本.ext
+        let tmp = TmpDir::new("copy-default-file");
+        let src = tmp.0.join("report.pdf");
+        fs::write(&src, "%PDF-1.4").unwrap();
+        let dst_dir = tmp.0.join("backup");
+        let expected = dst_dir.join("report - 副本.pdf");
+        let mut src_obj = serde_json::Map::new();
+        src_obj.insert("path".to_string(), s(&src.to_string_lossy()));
+        let mut cp_params = serde_json::Map::new();
+        cp_params.insert("output".to_string(), s(&dst_dir.to_string_lossy()));
+        // 不填 name
+        let r = exec_with_params("copy", cp_params, vec![serde_json::Value::Object(src_obj)]);
+        assert!(r.ok, "default name file: {}", r.message);
+        assert!(expected.exists(), "应为 report - 副本.pdf，实际未找到：{}", expected.display());
+        let out_path = r.output.unwrap().get("path").and_then(|v| v.as_str()).unwrap().to_string();
+        assert_eq!(out_path, expected.to_string_lossy().to_string());
+    }
+
+    #[test]
+    fn process_copy_default_name_for_dir() {
+        // name 留空：目录 → dir_name - 副本
+        let tmp = TmpDir::new("copy-default-dir");
+        let src = tmp.0.join("frontend");
+        fs::create_dir_all(&src).unwrap();
+        fs::write(src.join("a.txt"), "x").unwrap();
+        let dst_dir = tmp.0.join("backup");
+        let expected = dst_dir.join("frontend - 副本");
+        let mut src_obj = serde_json::Map::new();
+        src_obj.insert("path".to_string(), s(&src.to_string_lossy()));
+        let mut cp_params = serde_json::Map::new();
+        cp_params.insert("output".to_string(), s(&dst_dir.to_string_lossy()));
+        let r = exec_with_params("copy", cp_params, vec![serde_json::Value::Object(src_obj)]);
+        assert!(r.ok, "default name dir: {}", r.message);
+        assert!(expected.join("a.txt").exists(), "应为 frontend - 副本/a.txt，实际：{}", expected.display());
+    }
+
+    #[test]
+    #[test]
+    fn process_copy_bump_suffix_logic() {
+        // bump_copy_suffix 只看 stem：
+        //   report.pdf -> report - 副本.pdf
+        //   report - 副本.pdf -> report - 副本 (2).pdf
+        //   report - 副本 (2).pdf -> report - 副本 (3).pdf
+        let tmp = TmpDir::new("bump-copy");
+        let dst_dir = tmp.0.join("out");
+        fs::create_dir_all(&dst_dir).unwrap();
+        let mk_params = || { let mut m = serde_json::Map::new(); m.insert("output".to_string(), s(&dst_dir.to_string_lossy())); m };
+        let mk_input = |path: &Path| { let mut m = serde_json::Map::new(); m.insert("path".to_string(), s(&path.to_string_lossy())); serde_json::Value::Object(m) };
+        // 第一轮：源是普通文件 report.pdf
+        let p1 = tmp.0.join("report.pdf");
+        fs::write(&p1, b"x").unwrap();
+        let r1 = exec_with_params("copy", mk_params(), vec![mk_input(&p1)]);
+        assert!(r1.ok, "round 1: {}", r1.message);
+        assert!(dst_dir.join("report - 副本.pdf").exists(), "round 1 应有 report - 副本.pdf");
+        // 第二轮
+        let p2 = dst_dir.join("report - 副本.pdf");
+        let r2 = exec_with_params("copy", mk_params(), vec![mk_input(&p2)]);
+        assert!(r2.ok, "round 2: {}", r2.message);
+        assert!(dst_dir.join("report - 副本 (2).pdf").exists(), "round 2 应有 report - 副本 (2).pdf");
+        // 第三轮
+        let p3 = dst_dir.join("report - 副本 (2).pdf");
+        let r3 = exec_with_params("copy", mk_params(), vec![mk_input(&p3)]);
+        assert!(r3.ok, "round 3: {}", r3.message);
+        assert!(dst_dir.join("report - 副本 (3).pdf").exists(), "round 3 应有 report - 副本 (3).pdf");
+    }
+
+
 }

@@ -3,6 +3,10 @@
 // 每个模板都以一个 start 节点开始（流程入口，画布有且仅有一个），
 // 以 end 节点结束。所有非 start/end 节点必须挂在 start 出发
 // 的路径上，否则加载后会被 validateWorkflow 标为孤立。
+//
+// 节点尺寸 168×56，节点中心间距 210（视觉间隔 ~42px），整体走画布左半边；
+// 右侧 Inspector 占 288px，画布可用宽 ~870px，4-5 节点可并排成行，
+// 用户加载模板就能看到完整流水线，不需要先平移画布。
 
 import type { Workflow, WorkflowTemplate } from "../types";
 
@@ -13,7 +17,7 @@ const FRONTEND_PUBLISH: Workflow = {
     {
       id: "n_start",
       type: "start",
-      x: -220,
+      x: 20,
       y: 80,
       params: {},
       status: "idle",
@@ -21,7 +25,7 @@ const FRONTEND_PUBLISH: Workflow = {
     {
       id: "n_src",
       type: "local_dir",
-      x: 80,
+      x: 230,
       y: 80,
       params: { path: "" },
       status: "idle",
@@ -29,7 +33,7 @@ const FRONTEND_PUBLISH: Workflow = {
     {
       id: "n_zip",
       type: "compress",
-      x: 380,
+      x: 440,
       y: 80,
       params: { output: "", level: "deflate" },
       status: "idle",
@@ -37,7 +41,7 @@ const FRONTEND_PUBLISH: Workflow = {
     {
       id: "n_upload",
       type: "sftp_upload",
-      x: 680,
+      x: 650,
       y: 80,
       params: {
         host: "",
@@ -51,8 +55,8 @@ const FRONTEND_PUBLISH: Workflow = {
     {
       id: "n_notify_ok",
       type: "notify",
-      x: 980,
-      y: 30,
+      x: 860,
+      y: 32,
       params: {
         title: "前端发布成功",
         body: "dist 已上传到 /var/www/app",
@@ -63,8 +67,8 @@ const FRONTEND_PUBLISH: Workflow = {
     {
       id: "n_end",
       type: "end",
-      x: 1280,
-      y: 80,
+      x: 860,
+      y: 128,
       params: {},
       status: "idle",
     },
@@ -109,7 +113,7 @@ const BACKEND_WAR_PUBLISH: Workflow = {
     {
       id: "n_start",
       type: "start",
-      x: -220,
+      x: 20,
       y: 80,
       params: {},
       status: "idle",
@@ -117,7 +121,7 @@ const BACKEND_WAR_PUBLISH: Workflow = {
     {
       id: "n_war",
       type: "local_file",
-      x: 80,
+      x: 230,
       y: 80,
       params: { path: "" },
       status: "idle",
@@ -125,7 +129,7 @@ const BACKEND_WAR_PUBLISH: Workflow = {
     {
       id: "n_backup",
       type: "sftp_backup",
-      x: 380,
+      x: 440,
       y: 80,
       params: {
         host: "",
@@ -140,7 +144,7 @@ const BACKEND_WAR_PUBLISH: Workflow = {
     {
       id: "n_delete",
       type: "sftp_delete",
-      x: 680,
+      x: 650,
       y: 80,
       params: {
         host: "",
@@ -154,7 +158,7 @@ const BACKEND_WAR_PUBLISH: Workflow = {
     {
       id: "n_upload",
       type: "sftp_upload",
-      x: 980,
+      x: 860,
       y: 80,
       params: {
         host: "",
@@ -168,7 +172,7 @@ const BACKEND_WAR_PUBLISH: Workflow = {
     {
       id: "n_branch",
       type: "if_status",
-      x: 1280,
+      x: 1070,
       y: 80,
       params: {},
       status: "idle",
@@ -176,8 +180,8 @@ const BACKEND_WAR_PUBLISH: Workflow = {
     {
       id: "n_notify_ok",
       type: "notify",
-      x: 1580,
-      y: 30,
+      x: 1280,
+      y: 32,
       params: {
         title: "后端 War 发布成功",
         body: "war 已发布到生产环境",
@@ -188,8 +192,8 @@ const BACKEND_WAR_PUBLISH: Workflow = {
     {
       id: "n_notify_fail",
       type: "notify",
-      x: 1580,
-      y: 130,
+      x: 1280,
+      y: 128,
       params: {
         title: "后端 War 发布失败",
         body: "请检查 SFTP 连接或文件路径",
@@ -200,7 +204,7 @@ const BACKEND_WAR_PUBLISH: Workflow = {
     {
       id: "n_end",
       type: "end",
-      x: 1880,
+      x: 1490,
       y: 80,
       params: {},
       status: "idle",
@@ -273,7 +277,7 @@ const ROBUST_PUBLISH: Workflow = {
     {
       id: "n_start",
       type: "start",
-      x: -220,
+      x: 20,
       y: 80,
       params: {},
       status: "idle",
@@ -281,7 +285,7 @@ const ROBUST_PUBLISH: Workflow = {
     {
       id: "n_src",
       type: "local_dir",
-      x: 80,
+      x: 230,
       y: 80,
       params: { path: "" },
       status: "idle",
@@ -289,7 +293,7 @@ const ROBUST_PUBLISH: Workflow = {
     {
       id: "n_zip",
       type: "compress",
-      x: 380,
+      x: 440,
       y: 80,
       params: { output: "", level: "deflate" },
       status: "idle",
@@ -297,7 +301,7 @@ const ROBUST_PUBLISH: Workflow = {
     {
       id: "n_retry",
       type: "retry",
-      x: 680,
+      x: 650,
       y: 80,
       params: { max_retries: "3", retry_delay: "5" },
       status: "idle",
@@ -305,7 +309,7 @@ const ROBUST_PUBLISH: Workflow = {
     {
       id: "n_upload",
       type: "sftp_upload",
-      x: 980,
+      x: 860,
       y: 80,
       params: {
         host: "",
@@ -319,8 +323,8 @@ const ROBUST_PUBLISH: Workflow = {
     {
       id: "n_notify_ok",
       type: "notify",
-      x: 1280,
-      y: 30,
+      x: 1070,
+      y: 32,
       params: {
         title: "发布完成",
         body: "dist 已成功发布",
@@ -331,8 +335,8 @@ const ROBUST_PUBLISH: Workflow = {
     {
       id: "n_end",
       type: "end",
-      x: 1280,
-      y: 130,
+      x: 1070,
+      y: 128,
       params: {},
       status: "idle",
     },
@@ -377,6 +381,34 @@ const ROBUST_PUBLISH: Workflow = {
   ],
 };
 
+const REMOTE_WORKFLOW: Workflow = {
+  version: 1,
+  name: "远端会话操作",
+  nodes: [
+    { id: "n_start", type: "start", x: 20, y: 100, params: {}, status: "idle" },
+    { id: "n_session", type: "ssh_session", x: 230, y: 100, params: { host: "", user: "", auth: "key", secret: "" }, status: "idle" },
+    { id: "n_src", type: "local_file", x: 230, y: 220, params: { path: "" }, status: "idle" },
+    { id: "n_upload", type: "sftp_upload", x: 440, y: 100, params: { host: "", user: "", auth: "key", secret: "", remote_path: "/var/tmp/release" }, status: "idle" },
+    { id: "n_extract", type: "remote_extract", x: 650, y: 100, params: { source_path: "", output: "/var/www/app", format: "auto" }, status: "idle" },
+    { id: "n_copy", type: "remote_copy", x: 860, y: 100, params: { source_path: "", target: "/var/www/app-backup" }, status: "idle" },
+    { id: "n_move", type: "remote_move", x: 1070, y: 100, params: { source_path: "", target: "/var/www/app-current" }, status: "idle" },
+    { id: "n_end", type: "end", x: 1280, y: 100, params: {}, status: "idle" },
+  ],
+  connections: [
+    { id: "c0", fromNode: "n_start", fromPort: 0, toNode: "n_session", toPort: 0 },
+    { id: "c_src_start", fromNode: "n_start", fromPort: 0, toNode: "n_src", toPort: 0 },
+    { id: "c1", fromNode: "n_session", fromPort: 0, toNode: "n_upload", toPort: 0 },
+    { id: "c_src", fromNode: "n_src", fromPort: 0, toNode: "n_upload", toPort: 1 },
+    { id: "c2", fromNode: "n_session", fromPort: 0, toNode: "n_extract", toPort: 0 },
+    { id: "c3", fromNode: "n_upload", fromPort: 0, toNode: "n_extract", toPort: 1 },
+    { id: "c4", fromNode: "n_session", fromPort: 0, toNode: "n_copy", toPort: 0 },
+    { id: "c5", fromNode: "n_extract", fromPort: 0, toNode: "n_copy", toPort: 1 },
+    { id: "c6", fromNode: "n_session", fromPort: 0, toNode: "n_move", toPort: 0 },
+    { id: "c7", fromNode: "n_copy", fromPort: 0, toNode: "n_move", toPort: 1 },
+    { id: "c8", fromNode: "n_move", fromPort: 0, toNode: "n_end", toPort: 0 },
+  ],
+};
+
 export const BUILTIN_TEMPLATES: WorkflowTemplate[] = [
   {
     id: "frontend-publish",
@@ -396,5 +428,11 @@ export const BUILTIN_TEMPLATES: WorkflowTemplate[] = [
     name: "健壮发布（含重试）",
     description: "dist → 压缩 → 重试节点 → SFTP 上传 → 通知 / 结束",
     workflow: ROBUST_PUBLISH,
+  },
+  {
+    id: "remote-workflow",
+    name: "远端会话操作",
+    description: "一次 SSH 会话 → SFTP 上传 → 远端解压 → 复制 → 移动",
+    workflow: REMOTE_WORKFLOW,
   },
 ];
