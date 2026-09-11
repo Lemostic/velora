@@ -14,9 +14,37 @@ import { useAutodeployStore, useSelectedNode } from "../store";
 import { FieldInput } from "./field-input";
 import { cn } from "@/lib/utils";
 
+const SSH_CONNECTION_FIELDS = new Set(["host", "user", "auth", "secret"]);
+
+function hasSshSessionAncestor(
+  nodeId: string,
+  workflow: {
+    nodes: ReadonlyArray<{ id: string; type: string }>;
+    connections: ReadonlyArray<{ fromNode: string; toNode: string }>;
+  },
+): boolean {
+  const byId = new Map(workflow.nodes.map((item) => [item.id, item]));
+  const pending = workflow.connections
+    .filter((connection) => connection.toNode === nodeId)
+    .map((connection) => connection.fromNode);
+  const visited = new Set<string>();
+
+  while (pending.length > 0) {
+    const current = pending.pop()!;
+    if (visited.has(current)) continue;
+    visited.add(current);
+    if (byId.get(current)?.type === "ssh_session") return true;
+    for (const connection of workflow.connections) {
+      if (connection.toNode === current) pending.push(connection.fromNode);
+    }
+  }
+  return false;
+}
+
 export function Inspector() {
   const node = useSelectedNode();
   const nodeTypes = useAutodeployStore((s) => s.nodeTypes);
+  const workflow = useAutodeployStore((s) => s.workflow);
   const updateNodeParam = useAutodeployStore((s) => s.updateNodeParam);
   const removeNode = useAutodeployStore((s) => s.removeNode);
 
@@ -45,7 +73,13 @@ export function Inspector() {
     (def?.icon && (Icons as unknown as Record<string, LucideIcon>)[def.icon]) ||
     Icons.Circle;
 
-  const missingRequired = (def?.fields ?? [])
+  const inheritsSshSession =
+    node.type !== "ssh_session" && hasSshSessionAncestor(node.id, workflow);
+  const visibleFields = (def?.fields ?? []).filter(
+    (field) => !(inheritsSshSession && SSH_CONNECTION_FIELDS.has(field.name)),
+  );
+
+  const missingRequired = visibleFields
     .filter((f) => f.required && !node.params[f.name])
     .map((f) => f.name);
 
@@ -145,8 +179,8 @@ export function Inspector() {
 
       {/* 字段表单 */}
       <div className="flex-1 space-y-3.5 overflow-y-auto px-3 py-3">
-        {def?.fields.length ? (
-          def.fields.map((f) => (
+        {visibleFields.length ? (
+          visibleFields.map((f) => (
             <FieldInput
               key={f.name}
               field={f}
@@ -157,6 +191,12 @@ export function Inspector() {
         ) : (
           <div className="text-[12px] text-[#c0c4cc]">
             此节点没有可配置参数
+          </div>
+        )}
+
+        {inheritsSshSession && (
+          <div className="rounded border border-[#67c23a]/40 bg-[#f0f9eb] px-2.5 py-2 text-[11px] leading-relaxed text-[#529b2e]">
+            已连接 SSH 会话，服务器、用户名、认证和凭据由会话节点提供。
           </div>
         )}
 

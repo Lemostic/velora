@@ -1,25 +1,44 @@
-// 画布几何工具 —— 贝塞尔曲线、命中测试、坐标变换
+// 画布几何工具 —— 正交圆角连线、命中测试、坐标变换
 
 import type { Viewport } from "../types";
 
 /**
- * 两点间的水平贝塞尔曲线路径（Node-RED / n8n 风格）。
- * x1/y1 在源点右侧引出，x2/y2 在目标点左侧引入。
+ * 生成带圆角转角的正交连线。
+ *
+ * 连线始终从源节点水平引出，经过一条垂直干线，再水平进入目标节点，
+ * 不使用贝塞尔曲线。这样多输入节点的连线方向更容易辨认，也更符合流程图
+ * 的阅读习惯。两点足够接近时自动降低圆角半径，避免圆角互相穿过。
  */
-export function bezierPath(
+export function orthogonalPath(
   x1: number,
   y1: number,
   x2: number,
   y2: number,
-  curvature = 0.5,
+  cornerRadius = 10,
 ): string {
   const dx = x2 - x1;
-  const handle = Math.max(Math.abs(dx) * curvature, 32);
-  const cx1 = x1 + handle;
-  const cy1 = y1;
-  const cx2 = x2 - handle;
-  const cy2 = y2;
-  return `M ${x1} ${y1} C ${cx1} ${cy1} ${cx2} ${cy2} ${x2} ${y2}`;
+  const dy = y2 - y1;
+
+  if (dy === 0) return `M ${x1} ${y1} L ${x2} ${y2}`;
+  if (dx === 0) return `M ${x1} ${y1} L ${x2} ${y2}`;
+
+  const directionX = Math.sign(dx);
+  const directionY = Math.sign(dy);
+  const middleX = x1 + dx / 2;
+  const radius = Math.min(cornerRadius, Math.abs(dx) / 4, Math.abs(dy) / 2);
+  const firstHorizontalX = middleX - directionX * radius;
+  const firstVerticalY = y1 + directionY * radius;
+  const secondVerticalY = y2 - directionY * radius;
+  const secondHorizontalX = middleX + directionX * radius;
+
+  return [
+    `M ${x1} ${y1}`,
+    `L ${firstHorizontalX} ${y1}`,
+    `Q ${middleX} ${y1} ${middleX} ${firstVerticalY}`,
+    `L ${middleX} ${secondVerticalY}`,
+    `Q ${middleX} ${y2} ${secondHorizontalX} ${y2}`,
+    `L ${x2} ${y2}`,
+  ].join(" ");
 }
 
 /**

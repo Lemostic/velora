@@ -1,4 +1,4 @@
-// 连线 SVG —— 节点之间的贝塞尔曲线
+// 连线 SVG —— 节点之间的正交圆角直线
 //
 // 视觉：Element Plus 风格
 //   - 默认 stroke 1.8px，颜色 #409eff
@@ -8,7 +8,7 @@
 
 import { useState } from "react";
 import { useAutodeployStore } from "../store";
-import { bezierPath, portOffset } from "../lib/geometry";
+import { orthogonalPath, portOffset } from "../lib/geometry";
 import type { Connection } from "../types";
 
 interface LineProps {
@@ -48,7 +48,7 @@ export function ConnectionLine({ conn, width, height }: LineProps) {
     dash = "6 4";
   }
 
-  const d = bezierPath(x1, y1, x2, y2);
+  const d = orthogonalPath(x1, y1, x2, y2);
 
   return (
     <g
@@ -74,6 +74,7 @@ export function ConnectionLine({ conn, width, height }: LineProps) {
         strokeWidth={hover ? 2.5 : 1.8}
         fill="none"
         strokeLinecap="round"
+        strokeLinejoin="round"
         strokeDasharray={dash}
         className="transition-all"
         style={{ transitionDuration: "120ms" }}
@@ -96,12 +97,13 @@ export function PendingConnection({ x1, y1, x2, y2 }: PendingProps) {
   return (
     <g>
       <path
-        d={bezierPath(x1, y1, x2, y2)}
+        d={orthogonalPath(x1, y1, x2, y2)}
         stroke="#409eff"
         strokeWidth={1.8}
         strokeDasharray="4 4"
         fill="none"
         strokeLinecap="round"
+        strokeLinejoin="round"
         style={{ pointerEvents: "none" }}
       />
       <circle cx={x1} cy={y1} r={3} fill="#409eff" />
