@@ -565,6 +565,104 @@ pub fn sftp_remote_delete(req: &AutodeployExecuteRequest) -> AutodeployExecuteRe
     result
 }
 
+/// 在同一 SSH 会话内修改远端文件或目录权限。
+pub fn sftp_remote_chmod(req: &AutodeployExecuteRequest) -> AutodeployExecuteResult {
+    let started = Instant::now();
+    let Some(source) = remote_input_path(req) else {
+        return fail(req, "远端权限缺少路径（请连接上游远端节点或填写路径）");
+    };
+    let Some(mode_str) = req
+        .params
+        .get("mode")
+        .and_then(|v| v.as_str())
+        .filter(|s| !s.trim().is_empty())
+    else {
+        return fail(req, "远端权限缺少权限模式");
+    };
+    let mode = match parse_octal_mode(mode_str) {
+        Ok(mode) => mode,
+        Err(e) => return fail(req, &e),
+    };
+    let recursive = req
+        .params
+        .get("recursive")
+        .and_then(|v| v.as_str())
+        == Some("true");
+    let (session, session_id) = match require_session(req) {
+        Ok(value) => value,
+        Err(e) => return fail(req, &e),
+    };
+    let recursive_flag = if recursive { "-R " } else { "" };
+    let command = format!(
+        "chmod {}{:o} -- {}",
+        recursive_flag,
+        mode,
+        shell_escape(&source),
+    );
+    let mut result = remote_command_result(
+        req,
+        &session,
+        &command,
+        format!("远端权限设置完成：{} → {:o}", source, mode),
+        output_with_session("remote", Some(&source), Some(&session_id)),
+    );
+    result.elapsed_ms = started.elapsed().as_millis() as u64;
+    result
+}
+
+/// 在同一 SSH 会话内修改远端文件或目录所有者。
+pub fn sftp_remote_chown(req: &AutodeployExecuteRequest) -> AutodeployExecuteResult {
+    let started = Instant::now();
+    let Some(source) = remote_input_path(req) else {
+        return fail(req, "远端所有者缺少路径（请连接上游远端节点或填写路径）");
+    };
+    let owner = req
+        .params
+        .get("owner")
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .trim();
+    let group = req
+        .params
+        .get("group")
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .trim();
+    if owner.is_empty() && group.is_empty() {
+        return fail(req, "用户和组不能同时为空");
+    }
+    let recursive = req
+        .params
+        .get("recursive")
+        .and_then(|v| v.as_str())
+        == Some("true");
+    let target = if group.is_empty() {
+        owner.to_string()
+    } else {
+        format!("{}:{}", owner, group)
+    };
+    let (session, session_id) = match require_session(req) {
+        Ok(value) => value,
+        Err(e) => return fail(req, &e),
+    };
+    let recursive_flag = if recursive { "-R " } else { "" };
+    let command = format!(
+        "chown {}-- {} {}",
+        recursive_flag,
+        shell_escape(&target),
+        shell_escape(&source),
+    );
+    let mut result = remote_command_result(
+        req,
+        &session,
+        &command,
+        format!("远端所有者设置完成：{} → {}", source, target),
+        output_with_session("remote", Some(&source), Some(&session_id)),
+    );
+    result.elapsed_ms = started.elapsed().as_millis() as u64;
+    result
+}
+
 fn zip_dir_to_zip(src_dir: &Path, zip_path: &Path) -> Result<u64, String> {
     use walkdir::WalkDir;
     use zip::write::SimpleFileOptions;
@@ -601,11 +699,20 @@ fn zip_dir_to_zip(src_dir: &Path, zip_path: &Path) -> Result<u64, String> {
 
 /// 把 "755" / "0o755" / "0755" 解析成 i32 八进制权限位。
 fn parse_octal_mode(s: &str) -> Result<i32, String> {
-    let t = s.trim().trim_start_matches("0o").trim_start_matches('0');
+    let trimmed = s.trim();
+    let t = trimmed
+        .strip_prefix("0o")
+        .or_else(|| trimmed.strip_prefix("0O"))
+        .unwrap_or(trimmed);
     if t.is_empty() {
         return Err("mode 不能为空".into());
     }
-    i32::from_str_radix(t, 8).map_err(|e| format!("mode 解析失败（需 8 进制如 755 / 0o755）：{}", e))
+    let mode = i32::from_str_radix(t, 8)
+        .map_err(|e| format!("mode 解析失败（需 8 进制如 755 / 0o755）：{}", e))?;
+    if mode > 0o7777 {
+        return Err("mode 超出范围（最多支持 7777）".into());
+    }
+    Ok(mode)
 }
 
 /// 单引号包裹 + 转义内部单引号，保证 shell 不会注入。

@@ -111,6 +111,36 @@ export function Inspector() {
             {def.description}
           </p>
         )}
+        {node.type === "ssh_session" && (
+          <div className="mt-2.5 rounded border border-[#b3d8ff] bg-[#ecf5ff] px-2.5 py-2 text-[11px] leading-relaxed text-[#409eff]">
+            <div className="font-semibold">使用方式</div>
+            <div className="mt-1">
+              1. 填好服务器、用户名和凭据；
+              <br />
+              2. 将本节点输出连接到远端节点的输入 1；
+              <br />
+              3. 将远端路径来源连接到输入 2。
+            </div>
+            <div className="mt-1 text-[#79bbff]">
+              同一工作流只建立一次 SSH 连接，后续远端步骤会复用它。
+            </div>
+          </div>
+        )}
+        {def && node.type !== "ssh_session" && node.type.startsWith("remote_") && (
+            <div className="mt-2.5 rounded border border-[#e6a23c]/40 bg-[#fdf6ec] px-2.5 py-2 text-[11px] leading-relaxed text-[#b88230]">
+              远端节点的输入 1 接 SSH 会话，输入 2 接远端路径。若路径已填写在节点参数中，可不连接输入 2。
+            </div>
+          )}
+        {def && node.type === "sftp_upload" && (
+          <div className="mt-2.5 rounded border border-[#e6a23c]/40 bg-[#fdf6ec] px-2.5 py-2 text-[11px] leading-relaxed text-[#b88230]">
+            SFTP 上传的输入 1 接 SSH 会话，输入 2 接本地文件或目录；远端节点可以继续使用本节点输出的远端路径。
+          </div>
+        )}
+        {def && ["sftp_download", "sftp_delete", "sftp_backup"].includes(node.type) && (
+          <div className="mt-2.5 rounded border border-[#e6a23c]/40 bg-[#fdf6ec] px-2.5 py-2 text-[11px] leading-relaxed text-[#b88230]">
+            可将 SSH 会话输出连接到输入 1 来复用连接；不连接时，填写本节点自己的服务器、用户名、认证和凭据。
+          </div>
+        )}
       </div>
 
       {/* 字段表单 */}

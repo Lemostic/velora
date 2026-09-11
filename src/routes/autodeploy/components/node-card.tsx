@@ -71,6 +71,7 @@ interface PortProps {
   x: number;
   y: number;
   isHovered: boolean;
+  label: string;
   /** 通知 canvas 这条 port 起始了画线（canvas 内部统一接管后续 mousemove / mouseup） */
   onConnectStart: (info: { fromNode: string; fromPort: number; fromSide: "input" | "output" }) => void;
 }
@@ -82,6 +83,7 @@ function PortHandle({
   x,
   y,
   isHovered,
+  label,
   onConnectStart,
 }: Omit<PortProps, "onConnectMove" | "onConnectEnd">) {
   return (
@@ -112,7 +114,7 @@ function PortHandle({
             side === "input" ? "left-full ml-2" : "right-full mr-2",
           )}
         >
-          {side === "input" ? `输入 ${portIndex + 1}` : `输出 ${portIndex + 1}`}
+          {label}
         </div>
       )}
     </div>
@@ -150,6 +152,21 @@ export function NodeCard({
 
   const bar = def ? CATEGORY_BAR[def.category] : "from-[#909399] to-[#b1b3b8]";
   const tint = def ? CATEGORY_LABEL_TINT[def.category] : "text-[#909399]";
+
+  const portLabel = (side: "input" | "output", index: number) => {
+    if (side === "output") return `输出 ${index + 1}`;
+    if (node.type === "ssh_session") return "流程入口";
+    if (node.type.startsWith("remote_")) {
+      return index === 0 ? "SSH 会话" : "远端路径";
+    }
+    if (node.type === "sftp_upload") {
+      return index === 0 ? "SSH 会话" : "本地文件 / 目录";
+    }
+    if (["sftp_download", "sftp_delete", "sftp_backup"].includes(node.type)) {
+      return "SSH 会话";
+    }
+    return `输入 ${index + 1}`;
+  };
 
   return (
     <div
@@ -204,6 +221,7 @@ export function NodeCard({
               side="input"
               x={p.x}
               y={p.y}
+              label={portLabel("input", i)}
               isHovered={hoveredPort?.side === "input" && hoveredPort.port === i}
               onConnectStart={onConnectStart}
             />
@@ -221,6 +239,7 @@ export function NodeCard({
               side="output"
               x={p.x}
               y={p.y}
+              label={portLabel("output", i)}
               isHovered={hoveredPort?.side === "output" && hoveredPort.port === i}
               onConnectStart={onConnectStart}
             />

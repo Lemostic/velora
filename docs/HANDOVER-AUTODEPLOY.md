@@ -11,8 +11,8 @@
 
 | 维度 | 状态 |
 | --- | --- |
-| Rust 端节点定义 | ✅ 21 个内置节点，前后端镜像保持同步 |
-| Rust 端实际执行 | ✅ 本地节点、SFTP、SSH 会话及远端压缩 / 解压 / 复制 / 移动 / 删除 |
+| Rust 端节点定义 | ✅ 23 个内置节点，前后端镜像保持同步 |
+| Rust 端实际执行 | ✅ 本地节点、SFTP、SSH 会话及远端压缩 / 解压 / 复制 / 移动 / 删除 / chmod / chown |
 | 前端画布 + 节点 + 连线 | ✅ 完成（Pointer/Mouse events） |
 | 前端执行引擎 | ✅ 拓扑排序 + 状态分发 + 失败重试（retry 是语义级） |
 | Inspector 动态表单 | ✅ 完成（path / text / number / select / checkbox） |
@@ -26,17 +26,25 @@
 
 ### 1.1 远端执行域
 
-远端连续步骤使用 `ssh_session` 节点作为会话入口。把它连接到同一组远端节点，
+远端连续步骤使用 `ssh_session` 节点作为会话入口。具体操作如下：
+
+1. 从节点库拖入 `SSH 会话`，填写服务器（如 `10.20.30.40:22`）、用户名、认证方式和凭据。
+2. 从节点库拖入 `SFTP 上传`、`远端解压`、`远端复制`、`远端移动`、`远端权限` 或 `远端所有者`。
+3. 将 `SSH 会话` 右侧的输出端口连接到远端节点左侧的输入 1（会话）。
+4. 将上游节点的输出连接到远端节点的输入 2（路径）。如果在节点的“路径（可选）”字段中直接填写了远端路径，则可以省略这条路径连线。
+5. 运行工作流。SSH 只认证一次，所有连接到它的远端节点在同一条会话上连续执行。
+
 例如：
 
 ```text
-开始 → SSH 会话 ─┬→ SFTP 上传 ─→ 远端解压 ─→ 远端移动
-                 └→ 远端复制
+开始 → SSH 会话 ─┬→ SFTP 上传 → 远端解压 → 远端复制 → 远端移动 → 远端权限 → 远端所有者 → 结束
+                 └───────────────────────────────────────────────────────────────（同一个会话）
 ```
 
 会话节点的输出是 `{ sessionId }`。远端节点同时接收会话输出和上游路径输出，
 在服务器上执行 `tar` / `zip` / `unzip` / `cp` / `mv` / `rm`，不会为了压缩或解压
-把文件下载到本机。画布会自动用虚线框标出 SSH 会话域。工作流完成或失败时，
+把文件下载到本机。远端权限节点对应 `chmod`，远端所有者节点对应 `chown`，均支持递归处理。
+画布会自动用虚线框标出 SSH 会话域。工作流完成或失败时，
 前端调用 `sftp_close_sessions` 释放本次运行创建的会话。
 
 远端压缩和解压依赖服务器已有的命令：压缩使用 `tar`（默认）或 `zip`，解压使用
@@ -71,20 +79,28 @@ src/routes/autodeploy-page.tsx            # 路由入口（layout 编排 + canva
 
 ---
 
-## 3. 14 个节点
+## 3. 23 个节点
 
 | ID | 类别 | inputs / outputs | 备注 |
 | --- | --- | --- | --- |
-| `local_file` | source | 0 / 1 | 完整 |
-| `local_dir` | source | 0 / 1 | 完整 |
-| `local_archive` | source | 0 / 1 | 完整 |
+| `local_file` | source | 1 / 1 | 完整 |
+| `local_dir` | source | 1 / 1 | 完整 |
+| `local_archive` | source | 1 / 1 | 完整 |
 | `compress` | process | 1 / 1 | 完整（zip crate） |
 | `extract` | process | 1 / 1 | 完整（zip crate） |
 | `copy` | process | 1 / 1 | 完整（fs::copy） |
-| `sftp_upload` | transfer | 1 / 1 | **stub** |
-| `sftp_download` | transfer | 0 / 1 | **stub**（之前错标为 1/1，已修） |
-| `sftp_delete` | transfer | 0 / 0 | **stub**（之前错标为 1/1，已修） |
-| `sftp_backup` | transfer | 0 / 0 | **stub**（之前错标为 1/1，已修） |
+| `ssh_session` | transfer | 1 / 1 | 建立一次 SSH，会话输出供后续远端节点复用 |
+| `remote_compress` | process | 2 / 1 | 服务器内压缩，输入 1 会话 / 输入 2 路径 |
+| `remote_extract` | process | 2 / 1 | 服务器内解压，输入 1 会话 / 输入 2 路径 |
+| `remote_copy` | process | 2 / 1 | 服务器内复制，输入 1 会话 / 输入 2 路径 |
+| `remote_move` | process | 2 / 1 | 服务器内移动，输入 1 会话 / 输入 2 路径 |
+| `remote_delete` | process | 2 / 1 | 服务器内删除，输入 1 会话 / 输入 2 路径 |
+| `remote_chmod` | process | 2 / 1 | 服务器内 chmod，支持递归 |
+| `remote_chown` | process | 2 / 1 | 服务器内 chown，支持递归 |
+| `sftp_upload` | transfer | 2 / 1 | 输入 1 会话 / 输入 2 本地路径 |
+| `sftp_download` | transfer | 1 / 1 | 输入 1 会话，也可独立填写连接参数 |
+| `sftp_delete` | transfer | 1 / 1 | 输入 1 会话，也可独立填写连接参数 |
+| `sftp_backup` | transfer | 1 / 1 | 输入 1 会话，也可独立填写连接参数 |
 | `if_status` | process | 1 / 2 | 状态分支：上游 success → output 0 / failure → output 1 |
 | `retry` | process | 1 / 1 | 字段 `max_retries` (3) / `retry_delay` (5s) — **当前只标语义，不做循环** |
 | `end` | process | 1 / 0 | 标记工作流结束 |
@@ -96,22 +112,20 @@ src/routes/autodeploy-page.tsx            # 路由入口（layout 编排 + canva
 
 为了避免后端 / 前端 / Inspector 渲染之间的歧义，**这是当前写死的设计**：
 
-- **SOURCES** 永远 `0 inputs / 1 output`（除了 delete / backup 是 `0/0`）
-- **PROCESS** 永远 `1 input / 1 output`，除了 `if_status` (1/2)、`end` (1/0)、`notify` (1/0)
-- **TRANSFER** 永远 `0 inputs`，输出按需：
-  - upload: 1
-  - download: 1（自起，不需上游）
-  - delete / backup: 0（独立操作，不入流水线）
+- **SOURCES** 是流程入口，当前定义为 `1 input / 1 output`（输入端用于连接 `start`）。
+- **PROCESS** 普通本地节点是 `1 input / 1 output`；远端节点是 `2 inputs / 1 output`，输入 1 为 SSH 会话，输入 2 为路径；`if_status` 为 (1/2)、`end` / `notify` 为 (1/0)。
+- **TRANSFER** 的 SSH/SFTP 节点也支持会话复用：`ssh_session` 是 (1/1)，`sftp_upload` 是 (2/1)，下载 / 删除 / 备份是 (1/1)。没有接 SSH 会话时，后端仍兼容节点自身填写 host/user/auth/secret 的旧方式。
 
 后续加新节点也按这个约定。如果出现 `1 input / 0 outputs` 的 process 节点，**没问题**（end / notify 就是）。
 
 ---
 
-## 5. 三个模板
+## 5. 四个模板
 
 - `frontend-publish`：dist → compress → sftp_upload → notify(success) → end
 - `backend-war-publish`：war → sftp_backup → sftp_delete → sftp_upload → **if_status**（成功 / 失败各发通知）→ end
 - `robust-publish`：dist → compress → **retry**(3/5s) → sftp_upload → notify(success) / end
+- `remote-workflow`：一次 SSH 会话 → SFTP 上传 → 远端解压 → 复制 → 移动 → chmod → chown
 
 ---
 
@@ -235,7 +249,7 @@ cd .. && pnpm tsc --noEmit
 - **Tauri 2 插件架构没用**：velora-core trait 已经定义但 P2 还没迁过去，autodeploy 直接在 `src-tauri/src/modules/autodeploy.rs` 写（与 qrcode / excel / weekly_report 同级）。原因是 velora-infra 还是空壳，HostServices trait 没有实现。autodeploy 用了 `invoke('autodeploy_execute', ...)` 直接拿后端数据，没走 trait 抽象。**迁 P2 架构时 autodeploy 是最难迁的**（节点定义 + executor + 模板都耦合了）。
 - **没用 dnd-kit / reactflow / @xyflow**：自己实现 600 行的 canvas + library + port 拖拽。原因是这些库都基于 pointer events，在 Tauri WebView 表现不稳。自己的实现用 mouse events 跨平台稳。代价：约 600 行手写代码要维护。
 - **没用 react-router 的 split** —— Velora 用 createBrowserRouter，所有模块都在一个 bundle 里（1.25MB / gzip 367KB），首屏 1 个 HTTP 请求。后续模块超过 30 个时考虑动态 import 拆 chunk。
-- **FALLBACK_NODE_TYPES**：前端 hardcode 了 14 个节点定义，与后端 BUILTIN_NODES 一一对应。这是为了让 vite dev（无 Tauri runtime）下节点库也完整可用。**这两份必须同步改**，改后端 autodeploy.rs 时也要改前端 store.ts。
+- **FALLBACK_NODE_TYPES**：前端 hardcode 了 23 个节点定义，与后端 BUILTIN_NODES 一一对应。这是为了让 vite dev（无 Tauri runtime）下节点库也完整可用。**这两份必须同步改**，改后端 autodeploy.rs 时也要改前端 store.ts。
 
 ---
 

@@ -243,9 +243,9 @@ const SSH_SESSION: NodeType = NodeType {
     id: "ssh_session",
     category: NodeCategory::Transfer,
     label: "SSH 会话",
-    description: "建立一次 SSH 连接，供连续的远端操作节点复用",
+    description: "建立一次 SSH 连接；把输出连到远端节点输入 1，后续步骤复用同一连接",
     icon: "TerminalSquare",
-    inputs: 0,
+    inputs: 1,
     outputs: 1,
     fields: &[
         FieldDef { name: "host", label: "服务器", kind: FieldKind::Text, required: true, placeholder: Some("10.20.30.40:22"), default: None, options: None },
@@ -291,6 +291,29 @@ const REMOTE_DELETE: NodeType = NodeType {
     id: "remote_delete", category: NodeCategory::Process, label: "远端删除",
     description: "在服务器上删除文件或目录（拒绝删除根目录）", icon: "Trash2", inputs: 2, outputs: 1,
     fields: &[FieldDef { name: "source_path", label: "路径（可选）", kind: FieldKind::Text, required: false, placeholder: Some("可由上游远端节点提供"), default: None, options: None }],
+};
+
+const REMOTE_CHMOD: NodeType = NodeType {
+    id: "remote_chmod", category: NodeCategory::Process, label: "远端权限",
+    description: "在服务器上执行 chmod；输入 1 接 SSH 会话，输入 2 接远端路径",
+    icon: "LockKeyhole", inputs: 2, outputs: 1,
+    fields: &[
+        FieldDef { name: "source_path", label: "路径（可选）", kind: FieldKind::Text, required: false, placeholder: Some("可由上游远端节点提供"), default: None, options: None },
+        FieldDef { name: "mode", label: "权限模式", kind: FieldKind::Text, required: true, placeholder: Some("755"), default: None, options: None },
+        FieldDef { name: "recursive", label: "递归处理", kind: FieldKind::Checkbox, required: false, placeholder: None, default: Some("false"), options: None },
+    ],
+};
+
+const REMOTE_CHOWN: NodeType = NodeType {
+    id: "remote_chown", category: NodeCategory::Process, label: "远端所有者",
+    description: "在服务器上执行 chown；输入 1 接 SSH 会话，输入 2 接远端路径",
+    icon: "UserCog", inputs: 2, outputs: 1,
+    fields: &[
+        FieldDef { name: "source_path", label: "路径（可选）", kind: FieldKind::Text, required: false, placeholder: Some("可由上游远端节点提供"), default: None, options: None },
+        FieldDef { name: "owner", label: "用户（可选）", kind: FieldKind::Text, required: false, placeholder: Some("deploy"), default: None, options: None },
+        FieldDef { name: "group", label: "组（可选）", kind: FieldKind::Text, required: false, placeholder: Some("www-data"), default: None, options: None },
+        FieldDef { name: "recursive", label: "递归处理", kind: FieldKind::Checkbox, required: false, placeholder: None, default: Some("false"), options: None },
+    ],
 };
 
 const SFTP_UPLOAD: NodeType = NodeType {
@@ -681,6 +704,8 @@ const BUILTIN_NODES: &[NodeType] = &[
     REMOTE_COPY,
     REMOTE_MOVE,
     REMOTE_DELETE,
+    REMOTE_CHMOD,
+    REMOTE_CHOWN,
     SFTP_UPLOAD,
     SFTP_DOWNLOAD,
     SFTP_DELETE,
@@ -757,6 +782,8 @@ fn run_node(req: &AutodeployExecuteRequest) -> AutodeployExecuteResult {
         "remote_copy" => crate::modules::sftp::sftp_remote_copy(req),
         "remote_move" => crate::modules::sftp::sftp_remote_move(req),
         "remote_delete" => crate::modules::sftp::sftp_remote_delete(req),
+        "remote_chmod" => crate::modules::sftp::sftp_remote_chmod(req),
+        "remote_chown" => crate::modules::sftp::sftp_remote_chown(req),
         "sftp_upload" | "sftp_download" | "sftp_delete" | "sftp_backup" => {
             transfer_sftp(req)
         }
@@ -1317,7 +1344,7 @@ mod tests {
     #[test]
     fn builtin_list_is_complete() {
         let nodes = autodeploy_list_node_types();
-        assert_eq!(nodes.len(), 21, "expect 21 built-in node types");
+        assert_eq!(nodes.len(), 23, "expect 23 built-in node types");
         let ids: Vec<&str> = nodes.iter().map(|n| n.id).collect();
         for must in &[
             "local_file",
@@ -1332,6 +1359,8 @@ mod tests {
             "remote_copy",
             "remote_move",
             "remote_delete",
+            "remote_chmod",
+            "remote_chown",
             "sftp_upload",
             "sftp_download",
             "sftp_delete",
@@ -1638,10 +1667,12 @@ mod tests {
     #[test]
     fn all_nodes_list_includes_required_ids() {
         let nodes = autodeploy_list_node_types();
-        assert_eq!(nodes.len(), 21);
+        assert_eq!(nodes.len(), 23);
         for id in [
             "local_file", "local_dir", "local_archive",
             "compress", "extract", "copy",
+            "ssh_session", "remote_compress", "remote_extract", "remote_copy",
+            "remote_move", "remote_delete", "remote_chmod", "remote_chown",
             "sftp_upload", "sftp_download", "sftp_delete", "sftp_backup",
             "if_status", "retry", "end", "notify", "start",
         ] {

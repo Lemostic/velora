@@ -392,7 +392,9 @@ const REMOTE_WORKFLOW: Workflow = {
     { id: "n_extract", type: "remote_extract", x: 650, y: 100, params: { source_path: "", output: "/var/www/app", format: "auto" }, status: "idle" },
     { id: "n_copy", type: "remote_copy", x: 860, y: 100, params: { source_path: "", target: "/var/www/app-backup" }, status: "idle" },
     { id: "n_move", type: "remote_move", x: 1070, y: 100, params: { source_path: "", target: "/var/www/app-current" }, status: "idle" },
-    { id: "n_end", type: "end", x: 1280, y: 100, params: {}, status: "idle" },
+    { id: "n_chmod", type: "remote_chmod", x: 1280, y: 100, params: { source_path: "", mode: "755", recursive: "true" }, status: "idle" },
+    { id: "n_chown", type: "remote_chown", x: 1490, y: 100, params: { source_path: "", owner: "", group: "", recursive: "true" }, status: "idle" },
+    { id: "n_end", type: "end", x: 1700, y: 100, params: {}, status: "idle" },
   ],
   connections: [
     { id: "c0", fromNode: "n_start", fromPort: 0, toNode: "n_session", toPort: 0 },
@@ -405,7 +407,11 @@ const REMOTE_WORKFLOW: Workflow = {
     { id: "c5", fromNode: "n_extract", fromPort: 0, toNode: "n_copy", toPort: 1 },
     { id: "c6", fromNode: "n_session", fromPort: 0, toNode: "n_move", toPort: 0 },
     { id: "c7", fromNode: "n_copy", fromPort: 0, toNode: "n_move", toPort: 1 },
-    { id: "c8", fromNode: "n_move", fromPort: 0, toNode: "n_end", toPort: 0 },
+    { id: "c8", fromNode: "n_session", fromPort: 0, toNode: "n_chmod", toPort: 0 },
+    { id: "c9", fromNode: "n_move", fromPort: 0, toNode: "n_chmod", toPort: 1 },
+    { id: "c10", fromNode: "n_session", fromPort: 0, toNode: "n_chown", toPort: 0 },
+    { id: "c11", fromNode: "n_chmod", fromPort: 0, toNode: "n_chown", toPort: 1 },
+    { id: "c12", fromNode: "n_chown", fromPort: 0, toNode: "n_end", toPort: 0 },
   ],
 };
 
@@ -432,7 +438,7 @@ export const BUILTIN_TEMPLATES: WorkflowTemplate[] = [
   {
     id: "remote-workflow",
     name: "远端会话操作",
-    description: "一次 SSH 会话 → SFTP 上传 → 远端解压 → 复制 → 移动",
+    description: "一次 SSH 会话 → 上传 → 解压 → 复制 → 移动 → chmod → chown",
     workflow: REMOTE_WORKFLOW,
   },
 ];
